@@ -5,6 +5,7 @@ from pprint import pp
 import os
 import sys
 import argparse
+import time
 
 
 #--------------
@@ -105,6 +106,7 @@ def build(args):
   # build from source
   # ref: https://github.com/FudanSELab/train-ticket/wiki/Installation-Guide
   mvn['clean', 'package', '-Dmaven.test.skip=true'] & FG
+  time.sleep(1) # wait in between commands due to jar generation delay??
   docker_compose['build'] & FG
 
 
