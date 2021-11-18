@@ -1,0 +1,369 @@
+#!/usr/bin/env python3
+
+from pathlib import Path
+from pprint import pp
+import os
+import sys
+import argparse
+
+
+#--------------
+# REST REQUESTS
+#--------------
+def create_contact(user_id, auth_token):
+  from faker import Faker
+  from faker.providers import ssn, phone_number
+  import requests
+
+  fake = Faker()
+  public_ip = '127.0.0.1'
+
+  url = f"http://{public_ip}:{SERVICES_TO_PORT['ts-contacts-service']}/api/v1/contactservice/contacts"
+  headers = { 'Authorization': 'Bearer ' + auth_token }
+  params = {
+    "accountId": user_id,
+    "name": fake.name(),
+    "documentNumber": fake.ssn(),
+    "documentType": 1, # ID Card
+    "phoneNumber": fake.phone_number()
+  }
+  r = requests.post(url, headers=headers, json=params)
+  return r.json()
+
+def login_user(username, password):
+  import requests
+
+  public_ip = '127.0.0.1'
+
+  # Login user
+  url = f"http://{public_ip}:{SERVICES_TO_PORT['ts-auth-service']}/api/v1/users/login"
+  params = {
+    "username": "fdse_microservice",
+    "password": "111111",
+    "verificationCode": ""
+  }
+  r = requests.post(url, json=params)
+  if r.status_code != 200:
+    print("[ERROR] Failed to login user")
+    exit(-1)
+
+  out = r.json()
+  return out['data']['userId'], out['data']['token']
+
+
+#--------------
+# INFO
+#--------------
+def info(args):
+  from plumbum.cmd import hostname
+
+  if args['links']:
+    public_ip = hostname['-I']().split()[1]
+    print(f"Homepage:\thttp://{public_ip}:8080\t\t\t(fdse_microservice:111111:1234)")
+    print(f"Admin:\t\thttp://{public_ip}:8080/adminlogin.html\t(admin:222222)")
+    print(f"Jaeger:\t\thttp://{public_ip}:16686")
+    print(f"RabbitMQ:\thttp://{public_ip}:15672\t\t\t(guest:guest)")
+    print(f"API Docs:")
+    print(f"\tts-auth-service:\t\thttp://{public_ip}:{SERVICES_TO_PORT['ts-auth-service']}/swagger-ui.html#!/user-controller/getTokenUsingPOST")
+    print(f"\tts-contacts-service:\t\thttp://{public_ip}:{SERVICES_TO_PORT['ts-contacts-service']}/swagger-ui.html#/contacts-controller")
+    print(f"\tts-order-service:\t\thttp://{public_ip}:{SERVICES_TO_PORT['ts-order-service']}/swagger-ui.html#!/user-controller/getTokenUsingPOST")
+    print(f"\tts-cancel-service:\t\thttp://{public_ip}:{SERVICES_TO_PORT['ts-cancel-service']}/swagger-ui.html#!/cancel-controller/cancelTicketUsingGET")
+    print(f"\tts-inside-payment-service:\thttp://{public_ip}:{SERVICES_TO_PORT['ts-inside-payment-service']}/swagger-ui.html#/inside-payment-controller")
+
+  if args['ps']:
+    from plumbum import FG
+    from plumbum.cmd import docker_compose
+
+    os.chdir(APP_PATH)
+    docker_compose['-f', DOCKER_COMPOSE_FILE, 'ps'] & FG
+
+  if args['logs']:
+    from plumbum import FG
+    from plumbum.cmd import docker_compose
+
+    os.chdir(APP_PATH)
+    docker_compose['-f', DOCKER_COMPOSE_FILE, 'logs', args['logs']] & FG
+
+
+#--------------
+# BUILD
+#--------------
+def build(args):
+  from plumbum import FG
+  from plumbum.cmd import mvn, docker_compose, find
+
+  # Dependencies:
+  #   sudo apt-get update
+  #   sudo apt-get install -y software-properties-common
+  #   sudo apt-add-repository 'deb http://security.debian.org/debian-security stretch/updates main'
+  #   sudo apt-get update
+  #   sudo apt-get install -y openjdk-8-jdk maven
+
+  os.chdir(APP_PATH)
+  # remove target directories - maven was not cleaning
+  find['.', '-type', 'd', '-name', 'target', '-exec', 'rm', '-rf', '{}', '+'] & FG
+  # build from source
+  # ref: https://github.com/FudanSELab/train-ticket/wiki/Installation-Guide
+  mvn['clean', 'package', '-Dmaven.test.skip=true'] & FG
+  docker_compose['build'] & FG
+
+
+#--------------
+# RUN
+#--------------
+def run(args):
+  from plumbum import FG
+  from plumbum import local
+  from plumbum.cmd import docker_compose
+
+  os.chdir(APP_PATH)
+
+  with local.env(COMPOSE_HTTP_TIMEOUT=180):
+    docker_compose['-f', DOCKER_COMPOSE_FILE, 'up'] & FG
+
+
+#--------------
+# CLEAN
+#--------------
+def clean(args):
+  from plumbum import FG
+  from plumbum.cmd import docker
+  from plumbum.cmd import docker_compose
+
+  os.chdir(APP_PATH)
+
+  docker_compose['-f', DOCKER_COMPOSE_FILE, 'down'] & FG
+  # cleaning system because train consumes a lot of memory/disk
+  docker['system', 'prune', '--volumes', '-f'] & FG
+
+
+#--------------
+# SEED
+#--------------
+def seed(args):
+  from plumbum import FG
+  import requests
+  from faker import Faker
+  from faker.providers import ssn, phone_number
+  from datetime import datetime, date
+  import yaml
+
+  user_id, auth_token = login_user("fdse_microservice", "111111")
+  headers = { 'Authorization': 'Bearer ' + auth_token }
+
+  # urls needed
+  public_ip = '127.0.0.1'
+  create_order_url = f"http://{public_ip}:{SERVICES_TO_PORT['ts-order-service']}/api/v1/orderservice/order"
+  pay_order_url = f"http://{public_ip}:{SERVICES_TO_PORT['ts-inside-payment-service']}/api/v1/inside_pay_service/inside_payment"
+
+  # common params
+  fake = Faker()
+  TODAY = date.today()
+  trip_id = 'D1345'
+  price = 100.0
+
+  order_ids = []
+  for _ in range(args['num_orders']):
+    # Create order
+    params = {
+      "accountId": user_id,
+      #
+      "contactsName": fake.name(),
+      "contactsDocumentNumber": fake.ssn(),
+      "documentType": 1, # ID Card
+      # /admin_station.html
+      "from": 'shanghai',
+      "to": 'suzhou',
+      # TRIP ID - /admin_travel.html
+      "trainNumber": trip_id,
+      #
+      "seatClass": 1, # BUSINESS
+      "coachNumber": 22,
+      "seatNumber": fake.bothify(text='##?', letters='ABCDEF'),
+      #
+      "boughtDate": datetime.now().isoformat().replace("+00:00", "Z"),
+      "travelDate": datetime(year=TODAY.year, month=TODAY.month, day=TODAY.day).isoformat().replace("+00:00", "Z"),
+      "travelTime": datetime.now().isoformat().replace("+00:00", "Z"),
+      #
+      "price": str(price),
+      "status": 0, # NOT PAID
+    }
+    r = requests.post(create_order_url, headers=headers, json=params)
+    if r.status_code != 200:
+      print("[ERROR] Failed to create order")
+      exit(-1)
+
+    order_id = r.json()['data']['id']
+
+    # Pay order
+    params = {
+      "userId": user_id,
+      "orderId": order_id,
+      "tripId": trip_id,
+      "price": str(price),
+    }
+    r = requests.post(pay_order_url, headers=headers, json=params)
+    if r.status_code != 200:
+      print("[ERROR] Failed to pay order")
+      exit(-1)
+
+    order_ids.append(order_id)
+
+  _put_last('seed_order_ids', order_ids)
+  print("[INFO] Seed complete. Saved order ids in last run info file")
+
+#--------------
+# WORKLOAD
+#--------------
+def wkld(args):
+  import gevent
+  from locust.env import Environment
+  from locust import HttpUser, task
+  from locust.stats import stats_printer, stats_history, StatsCSVFileWriter, print_error_report, print_percentile_stats, print_stats, stats_printer, stats_history
+  from locust.log import setup_logging
+  from datetime import datetime
+  import random
+
+  # create gather folder if needed
+  gather_path = ROOT_PATH / 'gather' / f"{datetime.now().strftime('%Y%m%d%H%M%S')}"
+  os.makedirs(gather_path, exist_ok=True)
+
+  # get login token
+  user_id, auth_token = login_user("fdse_microservice", "111111")
+  headers = { 'Authorization': 'Bearer ' + auth_token }
+
+  # get previously created order ids
+  order_ids = _get_last('seed_order_ids')
+
+  public_ip = '127.0.0.1'
+  class TrainTicket(HttpUser):
+    host = f"http://{public_ip}:{SERVICES_TO_PORT['ts-cancel-service']}"
+
+    @task
+    def cancel_order(self):
+      # remove random order id
+      order_id = order_ids.pop(random.randint(0, len(order_ids)-1))
+
+      self.client.get(f"/api/v1/cancelservice/cancel/{order_id}/{user_id}", headers=headers)
+
+  # setup Environment and Runner
+  setup_logging("INFO", None)
+  env = Environment(user_classes=[TrainTicket])
+
+  # write files to csv
+  stats_csv_writer = StatsCSVFileWriter(
+    environment=env,
+    base_filepath=str(gather_path)+"/" ,
+    full_history=True,
+    percentiles_to_report=PERCENTILES_TO_REPORT
+  )
+  gevent.spawn(stats_csv_writer.stats_writer)
+
+  # start env
+  env.create_local_runner()
+  env.runner.start(args['users'], spawn_rate=args['rate'])
+  # stop the runner when duration ends
+  gevent.spawn_later(args['duration'], lambda: env.runner.quit())
+  # wait for the greenlets
+  env.runner.greenlet.join()
+
+  print_stats(env.runner.stats, current=False)
+  print_percentile_stats(env.runner.stats)
+  print_error_report(env.runner.stats)
+
+  # remove order ids from last
+  _put_last('seed_order_ids', order_ids)
+
+
+#--------------
+# HELPERS
+#--------------
+def _services():
+  import yaml
+
+  with open(DOCKER_COMPOSE_FILE) as file:
+    return list(yaml.load(file, Loader=yaml.FullLoader)['services'].keys())
+
+def _services_to_port():
+  import yaml
+
+  with open(DOCKER_COMPOSE_FILE) as file:
+    return { name:int(d['ports'][0].split(':')[0]) for name,d in yaml.load(file, Loader=yaml.FullLoader)['services'].items() if 'ports' in d }
+
+def _load_yaml(path):
+  import yaml
+  with open(path, 'r') as f:
+    return yaml.safe_load(f) or {}
+
+def _put_last(k,v):
+  import yaml
+  doc = {}
+  # if file exists parse yaml otherwise create empty dict to write to
+  if Path(LAST_INFO_FILE).exists():
+    doc = _load_yaml(LAST_INFO_FILE)
+  # write new value and save to file
+  doc[k] = v
+  with open(LAST_INFO_FILE, 'w+') as f:
+      yaml.safe_dump(doc, f, default_flow_style=False)
+
+def _get_last(k):
+  import yaml
+  doc = _load_yaml(LAST_INFO_FILE)
+  return doc.get(k)
+
+#--------------
+# CONSTANTS
+#--------------
+ROOT_PATH = Path(os.path.abspath(os.path.dirname(sys.argv[0])))
+APP_PATH = ROOT_PATH / 'train-ticket'
+# DOCKER_COMPOSE_FILE = APP_PATH / 'deployment' / 'docker-compose-manifests' / 'docker-compose-with-jaeger.yml'
+DOCKER_COMPOSE_FILE = APP_PATH / 'docker-compose.yml'
+SERVICES = _services()
+SERVICES_TO_PORT = _services_to_port()
+LAST_INFO_FILE = ROOT_PATH / 'deploy' / '.last.yml'
+PERCENTILES_TO_REPORT = [.25, .5, .75, .90, .99]
+
+
+#--------------
+# CLI
+#--------------
+if __name__ == '__main__':
+  # parse arguments
+  main_parser = argparse.ArgumentParser()
+
+  # different commands
+  subparsers = main_parser.add_subparsers(help='commands', dest='which')
+
+  # info application
+  build_parser = subparsers.add_parser('build', help='Build application from source')
+
+
+  # info application
+  info_parser = subparsers.add_parser('info', help='Application info')
+  info_parser.add_argument('-links', action='store_true', help="Application links")
+  info_parser.add_argument('-ps', action='store_true', help="Application processes")
+  info_parser.add_argument('-logs', choices=SERVICES, help="Application processes")
+
+  # run application
+  run_parser = subparsers.add_parser('run', help='Run application')
+
+  # clean application
+  clean_parser = subparsers.add_parser('clean', help='Clean application')
+
+  # workload application
+  seed_parser = subparsers.add_parser('seed', help='Seed orders')
+  seed_parser.add_argument('-no', '--num-orders', type=int, default=1, help="Number or orders to spawn")
+
+  # workload application
+  wkld_parser = subparsers.add_parser('wkld', help='Run workload generator')
+  # comparable with wrk2 > ./wrk options
+  wkld_parser.add_argument('-u', '--users', type=int, default=1, help="Number of users")
+  wkld_parser.add_argument('-d', '--duration', type=int, default='1', help="Duration in seconds")
+  wkld_parser.add_argument('-r', '--rate', type=int, default=1, help="Work rate (throughput) in request per second")
+
+  # parse args
+  args = vars(main_parser.parse_args())
+  command = args.pop('which')
+
+  # call parser method dynamically
+  getattr(sys.modules[__name__], command)(args)
