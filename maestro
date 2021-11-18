@@ -51,6 +51,36 @@ def login_user(username, password):
   out = r.json()
   return out['data']['userId'], out['data']['token']
 
+def cancel_order(order_id, user_id, auth_token):
+  import requests
+
+  public_ip = '127.0.0.1'
+  url = f"http://{public_ip}:{SERVICES_TO_PORT['ts-cancel-service']}/api/v1/cancelservice/cancel/{order_id}/{user_id}"
+  headers = { 'Authorization': 'Bearer ' + auth_token }
+  r = requests.get(url, headers=headers)
+  if r.status_code != 200:
+    print("[ERROR] Failed to cancel order")
+    exit(-1)
+  return r
+
+def fetch_drawback(auth_token):
+  import requests
+
+  public_ip = '127.0.0.1'
+  url = f"http://{public_ip}:{SERVICES_TO_PORT['ts-inside-payment-service']}/api/v1/inside_pay_service/inside_payment/money"
+  headers = { 'Authorization': 'Bearer ' + auth_token }
+  r = requests.get(url, headers=headers)
+  if r.status_code != 200:
+    print("[ERROR] Failed to fetch drawback")
+    exit(-1)
+
+  # if len([e for e in r.json()['data'] if e['orderId'] == order_id ]) == 0:
+  #   print("INCONSISTENT")
+  # else:
+  #   print("CONSISTENT")
+
+  return r
+
 
 #--------------
 # INFO
