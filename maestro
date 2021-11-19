@@ -163,81 +163,6 @@ def clean(args):
 
 
 #--------------
-# SEED
-#--------------
-def seed(args):
-  from plumbum import FG
-  import requests
-  from faker import Faker
-  from faker.providers import ssn, phone_number
-  from datetime import datetime, date
-  import yaml
-
-  user_id, auth_token = login_user("fdse_microservice", "111111")
-  headers = { 'Authorization': 'Bearer ' + auth_token }
-
-  # urls needed
-  create_order_url = f"{_service_public_endpoint('ts-order-service')}/api/v1/orderservice/order"
-  pay_order_url = f"{_service_public_endpoint('ts-inside-payment-service')}/api/v1/inside_pay_service/inside_payment"
-
-  # common params
-  fake = Faker()
-  TODAY = date.today()
-  trip_id = 'D1345'
-  price = 100.0
-
-  order_ids = []
-  for _ in range(args['num_orders']):
-    # Create order
-    params = {
-      "accountId": user_id,
-      #
-      "contactsName": fake.name(),
-      "contactsDocumentNumber": fake.ssn(),
-      "documentType": 1, # ID Card
-      # /admin_station.html
-      "from": 'shanghai',
-      "to": 'suzhou',
-      # TRIP ID - /admin_travel.html
-      "trainNumber": trip_id,
-      #
-      "seatClass": 1, # BUSINESS
-      "coachNumber": 22,
-      "seatNumber": fake.bothify(text='##?', letters='ABCDEF'),
-      #
-      "boughtDate": datetime.now().isoformat().replace("+00:00", "Z"),
-      "travelDate": datetime(year=TODAY.year, month=TODAY.month, day=TODAY.day).isoformat().replace("+00:00", "Z"),
-      "travelTime": datetime.now().isoformat().replace("+00:00", "Z"),
-      #
-      "price": str(price),
-      "status": 0, # NOT PAID
-    }
-    r = requests.post(create_order_url, headers=headers, json=params)
-    if r.status_code != 200:
-      print("[ERROR] Failed to create order")
-      exit(-1)
-
-    order_id = r.json()['data']['id']
-
-    # Pay order
-    params = {
-      "userId": user_id,
-      "orderId": order_id,
-      "tripId": trip_id,
-      "price": str(price),
-    }
-    r = requests.post(pay_order_url, headers=headers, json=params)
-    if r.status_code != 200:
-      print("[ERROR] Failed to pay order")
-      exit(-1)
-
-    order_ids.append(order_id)
-
-  _put_last('seed_order_ids', order_ids)
-  print("[INFO] Seed complete. Saved order ids in last run info file")
-
-
-#--------------
 # WORKLOAD
 #--------------
 def wkld(args):
@@ -271,11 +196,13 @@ def wkld(args):
         command: -f locustfile.py --master -H http://master:8089 --expect-workers {{ num_workers }} --headless --reset-stats --only-summary --logfile {{ report_prefix }}.err --html {{ report_prefix }}.html --csv {{ report_prefix }} --run-time {{ run_time }} -u {{ users }}
         environment:
           AUTH_SERVICE_URL: {{ auth_service_url }}
+          ORDER_SERVICE_URL: {{ order_service_url }}
           CANCEL_SERVICE_URL: {{ cancel_service_url }}
           INSIDE_PAYMENT_SERVICE_URL: {{ inside_payment_service_url }}
           USERNAME: {{ username }}
           PASSWORD: {{ password }}
           WORKER_ID: MASTER
+          SEED_SIZE: {{ seed_size }}
         ports:
           - "8089:8089"
         volumes:
@@ -288,17 +215,20 @@ def wkld(args):
         command: -f locustfile.py --worker --master-host master --headless --reset-stats
         environment:
           AUTH_SERVICE_URL: {{ auth_service_url }}
+          ORDER_SERVICE_URL: {{ order_service_url }}
           CANCEL_SERVICE_URL: {{ cancel_service_url }}
           INSIDE_PAYMENT_SERVICE_URL: {{ inside_payment_service_url }}
           USERNAME: {{ username }}
           PASSWORD: {{ password }}
           WORKER_ID: {{ worker_id }}
+          SEED_SIZE: {{ seed_size }}
         volumes:
           - ./:/mnt/locust
       {% endfor %}
   """
   inventory = Environment().from_string(template).render({
     'auth_service_url': _service_public_endpoint('ts-auth-service'),
+    'order_service_url': _service_public_endpoint('ts-order-service'),
     'cancel_service_url': _service_public_endpoint('ts-cancel-service'),
     'inside_payment_service_url': _service_public_endpoint('ts-inside-payment-service'),
     'username': 'fdse_microservice',
@@ -307,19 +237,13 @@ def wkld(args):
     'users': args['threads'],
     'run_time': f"{args['duration']}s",
     'report_prefix': tag,
+    'seed_size': SEED_TO_DURATION_FACTOR * args['duration'],
   })
   docker_compose_filepath = deploy_path / 'docker-compose.yml'
   with open(docker_compose_filepath, 'w') as f:
     # remove empty lines and dedent for easier read
     f.write(textwrap.dedent(inventory))
   print(f"[SAVED] '{docker_compose_filepath}'")
-
-  # dynamically build yaml with order ids for each client
-  order_ids = _split_list(_get_last('seed_order_ids'), args['clients'])
-  for i, oos in enumerate(order_ids):
-    p = deploy_path / f'order-ids-{i}.yml'
-    _dump_yaml(p, { 'order_ids': oos })
-    print(f"[SAVED] '{p}'")
 
   # run locust and remove containers
   with local.cwd(deploy_path):
@@ -404,13 +328,11 @@ def _service_public_endpoint(name):
 #--------------
 ROOT_PATH = Path(os.path.abspath(os.path.dirname(sys.argv[0])))
 APP_PATH = ROOT_PATH / 'train-ticket'
-# DOCKER_COMPOSE_FILE = APP_PATH / 'deployment' / 'docker-compose-manifests' / 'docker-compose-with-jaeger.yml'
 DOCKER_COMPOSE_FILE = APP_PATH / 'docker-compose.yml'
 SERVICES = _services()
 SERVICES_TO_PORT = _services_to_port()
 LAST_INFO_FILE = ROOT_PATH / '.last.yml'
-PERCENTILES_TO_REPORT = [.25, .5, .75, .90, .99]
-
+SEED_TO_DURATION_FACTOR = 50 # in 1 second it does less than this
 
 #--------------
 # CLI
