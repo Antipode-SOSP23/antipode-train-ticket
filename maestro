@@ -241,63 +241,93 @@ def seed(args):
 # WORKLOAD
 #--------------
 def wkld(args):
-  import gevent
-  from locust.env import Environment
-  from locust import HttpUser, task
-  from locust.stats import stats_printer, stats_history, StatsCSVFileWriter, print_error_report, print_percentile_stats, print_stats, stats_printer, stats_history
-  from locust.log import setup_logging
   from datetime import datetime
-  import random
+  from jinja2 import Environment
+  import textwrap
+  from plumbum import FG
+  from plumbum import local
+  from plumbum.cmd import docker_compose
+  import shutil
 
-  # create gather folder if needed
-  gather_path = ROOT_PATH / 'gather' / f"{datetime.now().strftime('%Y%m%d%H%M%S')}"
+  # tag for this deployment
+  tag = f"{datetime.now().strftime('%Y%m%d%H%M%S')}"
+
+  # create gather folder
+  gather_path = ROOT_PATH / 'gather' / tag
   os.makedirs(gather_path, exist_ok=True)
 
-  # get login token
-  user_id, auth_token = login_user("fdse_microservice", "111111")
-  headers = { 'Authorization': 'Bearer ' + auth_token }
+  # create deploy folder
+  deploy_path = ROOT_PATH / 'deploy' / tag
+  os.makedirs(deploy_path, exist_ok=True)
 
-  # get previously created order ids
-  order_ids = _get_last('seed_order_ids')
+  # copy locust files to deploy folder
+  shutil.copy(ROOT_PATH / 'locust' / f"locustfile.py", deploy_path)
+  shutil.copy(ROOT_PATH / 'locust' / f"Dockerfile", deploy_path)
 
-  public_ip = '127.0.0.1'
-  class TrainTicket(HttpUser):
-    host = f"http://{public_ip}:{SERVICES_TO_PORT['ts-cancel-service']}"
+  # dynamically build docker-compose for clients
+  public_ip = _public_hostname()
+  template = """
+    version: '3'
+    services:
+      master:
+        build: .
+        working_dir: /mnt/locust
+        command: -f locustfile.py --master -H http://master:8089 --headless --reset-stats --only-summary --html {{ report_prefix }}.html --csv {{ report_prefix }} --run-time {{ run_time }} -u {{ users }}
+        environment:
+          AUTH_SERVICE_URL: {{ auth_service_url }}
+          CANCEL_SERVICE_URL: {{ cancel_service_url }}
+          INSIDE_PAYMENT_SERVICE_URL: {{ inside_payment_service_url }}
+          USERNAME: {{ username }}
+          PASSWORD: {{ password }}
+          WORKER_ID: MASTER
+        ports:
+          - "8089:8089"
+        volumes:
+          - ./:/mnt/locust
 
-    @task
-    def cancel_order(self):
-      # remove random order id
-      order_id = order_ids.pop(random.randint(0, len(order_ids)-1))
+      {% for worker_id in range(num_workers) %}
+      worker_{{ worker_id }}:
+        build: .
+        working_dir: /mnt/locust
+        command: -f locustfile.py --worker --master-host master --headless --reset-stats
+        environment:
+          AUTH_SERVICE_URL: {{ auth_service_url }}
+          CANCEL_SERVICE_URL: {{ cancel_service_url }}
+          INSIDE_PAYMENT_SERVICE_URL: {{ inside_payment_service_url }}
+          USERNAME: {{ username }}
+          PASSWORD: {{ password }}
+          WORKER_ID: {{ worker_id }}
+        volumes:
+          - ./:/mnt/locust
+      {% endfor %}
+  """
+  inventory = Environment().from_string(template).render({
+    'auth_service_url': _service_public_endpoint('ts-auth-service'),
+    'cancel_service_url': _service_public_endpoint('ts-cancel-service'),
+    'inside_payment_service_url': _service_public_endpoint('ts-inside-payment-service'),
+    'username': 'fdse_microservice',
+    'password': '111111',
+    'num_workers': args['clients'],
+    'users': args['threads'],
+    'run_time': f"{args['duration']}s",
+    'report_prefix': tag,
+  })
+  docker_compose_filepath = deploy_path / 'docker-compose.yml'
+  with open(docker_compose_filepath, 'w') as f:
+    # remove empty lines and dedent for easier read
+    f.write(textwrap.dedent(inventory))
+  print(f"[SAVED] '{docker_compose_filepath}'")
 
-      self.client.get(f"/api/v1/cancelservice/cancel/{order_id}/{user_id}", headers=headers)
+  # dynamically build yaml with order ids for each client
+  order_ids = _split_list(_get_last('seed_order_ids'), args['clients'])
+  for i, oos in enumerate(order_ids):
+    p = deploy_path / f'order-ids-{i}.yml'
+    _dump_yaml(p, { 'order_ids': oos })
+    print(f"[SAVED] '{p}'")
 
-  # setup Environment and Runner
-  setup_logging("INFO", None)
-  env = Environment(user_classes=[TrainTicket])
-
-  # write files to csv
-  stats_csv_writer = StatsCSVFileWriter(
-    environment=env,
-    base_filepath=str(gather_path)+"/" ,
-    full_history=True,
-    percentiles_to_report=PERCENTILES_TO_REPORT
-  )
-  gevent.spawn(stats_csv_writer.stats_writer)
-
-  # start env
-  env.create_local_runner()
-  env.runner.start(args['users'], spawn_rate=args['rate'])
-  # stop the runner when duration ends
-  gevent.spawn_later(args['duration'], lambda: env.runner.quit())
-  # wait for the greenlets
-  env.runner.greenlet.join()
-
-  print_stats(env.runner.stats, current=False)
-  print_percentile_stats(env.runner.stats)
-  print_error_report(env.runner.stats)
-
-  # remove order ids from last
-  _put_last('seed_order_ids', order_ids)
+  with local.cwd(deploy_path):
+    docker_compose['up'] & FG
+    docker_compose['down'] & FG
 
 
 #--------------
@@ -340,6 +370,9 @@ def _get_last(k):
   doc = _load_yaml(LAST_INFO_FILE)
   return doc.get(k)
 
+def _split_list(a, n):
+    k, m = divmod(len(a), n)
+    return list(a[i*k+min(i, m):(i+1)*k+min(i+1, m)] for i in range(n))
 
 def _public_hostname():
   from plumbum.cmd import hostname
@@ -394,9 +427,10 @@ if __name__ == '__main__':
 
   # workload application
   wkld_parser = subparsers.add_parser('wkld', help='Run workload generator')
-  wkld_parser.add_argument('-u', '--users', type=int, default=1, help="Number of users")
+  wkld_parser.add_argument('-c', '--clients', type=int, default=1, help="Number of clients to run on")
+  wkld_parser.add_argument('-t', '--threads', type=int, default=1, help="Number of threads")
   wkld_parser.add_argument('-d', '--duration', type=int, default='1', help="Duration in seconds")
-  wkld_parser.add_argument('-r', '--rate', type=int, default=1, help="Work rate (throughput) in request per second")
+  # wkld_parser.add_argument('-r', '--rate', type=int, default=1, help="Work rate (throughput) in request per second")
 
   # parse args
   args = vars(main_parser.parse_args())
