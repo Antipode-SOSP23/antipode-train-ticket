@@ -17,9 +17,8 @@ def create_contact(user_id, auth_token):
   import requests
 
   fake = Faker()
-  public_ip = '127.0.0.1'
 
-  url = f"http://{public_ip}:{SERVICES_TO_PORT['ts-contacts-service']}/api/v1/contactservice/contacts"
+  url = f"{_service_public_endpoint('ts-contacts-service')}/api/v1/contactservice/contacts"
   headers = { 'Authorization': 'Bearer ' + auth_token }
   params = {
     "accountId": user_id,
@@ -34,10 +33,8 @@ def create_contact(user_id, auth_token):
 def login_user(username, password):
   import requests
 
-  public_ip = '127.0.0.1'
-
   # Login user
-  url = f"http://{public_ip}:{SERVICES_TO_PORT['ts-auth-service']}/api/v1/users/login"
+  url = f"{_service_public_endpoint('ts-auth-service')}/api/v1/users/login"
   params = {
     "username": "fdse_microservice",
     "password": "111111",
@@ -54,8 +51,7 @@ def login_user(username, password):
 def cancel_order(order_id, user_id, auth_token):
   import requests
 
-  public_ip = '127.0.0.1'
-  url = f"http://{public_ip}:{SERVICES_TO_PORT['ts-cancel-service']}/api/v1/cancelservice/cancel/{order_id}/{user_id}"
+  url = f"{_service_public_endpoint('ts-cancel-service')}/api/v1/cancelservice/cancel/{order_id}/{user_id}"
   headers = { 'Authorization': 'Bearer ' + auth_token }
   r = requests.get(url, headers=headers)
   if r.status_code != 200:
@@ -66,8 +62,7 @@ def cancel_order(order_id, user_id, auth_token):
 def fetch_drawback(auth_token):
   import requests
 
-  public_ip = '127.0.0.1'
-  url = f"http://{public_ip}:{SERVICES_TO_PORT['ts-inside-payment-service']}/api/v1/inside_pay_service/inside_payment/money"
+  url = f"{_service_public_endpoint('ts-inside-payment-service')}/api/v1/inside_pay_service/inside_payment/money"
   headers = { 'Authorization': 'Bearer ' + auth_token }
   r = requests.get(url, headers=headers)
   if r.status_code != 200:
@@ -86,20 +81,18 @@ def fetch_drawback(auth_token):
 # INFO
 #--------------
 def info(args):
-  from plumbum.cmd import hostname
-
   if args['links']:
-    public_ip = hostname['-I']().split()[1]
+    public_ip = _public_hostname()
     print(f"Homepage:\thttp://{public_ip}:8080\t\t\t(fdse_microservice:111111:1234)")
     print(f"Admin:\t\thttp://{public_ip}:8080/adminlogin.html\t(admin:222222)")
     print(f"Jaeger:\t\thttp://{public_ip}:16686")
     print(f"RabbitMQ:\thttp://{public_ip}:15672\t\t\t(guest:guest)")
     print(f"API Docs:")
-    print(f"\tts-auth-service:\t\thttp://{public_ip}:{SERVICES_TO_PORT['ts-auth-service']}/swagger-ui.html#!/user-controller/getTokenUsingPOST")
-    print(f"\tts-contacts-service:\t\thttp://{public_ip}:{SERVICES_TO_PORT['ts-contacts-service']}/swagger-ui.html#/contacts-controller")
-    print(f"\tts-order-service:\t\thttp://{public_ip}:{SERVICES_TO_PORT['ts-order-service']}/swagger-ui.html#!/user-controller/getTokenUsingPOST")
-    print(f"\tts-cancel-service:\t\thttp://{public_ip}:{SERVICES_TO_PORT['ts-cancel-service']}/swagger-ui.html#!/cancel-controller/cancelTicketUsingGET")
-    print(f"\tts-inside-payment-service:\thttp://{public_ip}:{SERVICES_TO_PORT['ts-inside-payment-service']}/swagger-ui.html#/inside-payment-controller")
+    print(f"\tts-auth-service:\t\t{_service_public_endpoint('ts-auth-service')}/swagger-ui.html#!/user-controller/")
+    print(f"\tts-contacts-service:\t\t{_service_public_endpoint('ts-contacts-service')}/swagger-ui.html#/contacts-controller")
+    print(f"\tts-order-service:\t\t{_service_public_endpoint('ts-order-service')}/swagger-ui.html")
+    print(f"\tts-cancel-service:\t\t{_service_public_endpoint('ts-cancel-service')}/swagger-ui.html#!/cancel-controller")
+    print(f"\tts-inside-payment-service:\t{_service_public_endpoint('ts-inside-payment-service')}/swagger-ui.html#/inside-payment-controller")
 
   if args['ps']:
     from plumbum import FG
@@ -184,9 +177,8 @@ def seed(args):
   headers = { 'Authorization': 'Bearer ' + auth_token }
 
   # urls needed
-  public_ip = '127.0.0.1'
-  create_order_url = f"http://{public_ip}:{SERVICES_TO_PORT['ts-order-service']}/api/v1/orderservice/order"
-  pay_order_url = f"http://{public_ip}:{SERVICES_TO_PORT['ts-inside-payment-service']}/api/v1/inside_pay_service/inside_payment"
+  create_order_url = f"{_service_public_endpoint('ts-order-service')}/api/v1/orderservice/order"
+  pay_order_url = f"{_service_public_endpoint('ts-inside-payment-service')}/api/v1/inside_pay_service/inside_payment"
 
   # common params
   fake = Faker()
@@ -343,6 +335,14 @@ def _get_last(k):
   import yaml
   doc = _load_yaml(LAST_INFO_FILE)
   return doc.get(k)
+
+
+def _public_hostname():
+  from plumbum.cmd import hostname
+  return hostname['-I']().split()[1]
+
+def _service_public_endpoint(name):
+  return f"http://{_public_hostname()}:{SERVICES_TO_PORT[name]}"
 
 
 #--------------
