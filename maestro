@@ -244,6 +244,7 @@ def seed(args):
   _put_last('seed_order_ids', order_ids)
   print("[INFO] Seed complete. Saved order ids in last run info file")
 
+
 #--------------
 # WORKLOAD
 #--------------
@@ -343,6 +344,7 @@ def _get_last(k):
   doc = _load_yaml(LAST_INFO_FILE)
   return doc.get(k)
 
+
 #--------------
 # CONSTANTS
 #--------------
@@ -352,7 +354,7 @@ APP_PATH = ROOT_PATH / 'train-ticket'
 DOCKER_COMPOSE_FILE = APP_PATH / 'docker-compose.yml'
 SERVICES = _services()
 SERVICES_TO_PORT = _services_to_port()
-LAST_INFO_FILE = ROOT_PATH / 'deploy' / '.last.yml'
+LAST_INFO_FILE = ROOT_PATH / '.last.yml'
 PERCENTILES_TO_REPORT = [.25, .5, .75, .90, .99]
 
 
@@ -388,7 +390,6 @@ if __name__ == '__main__':
 
   # workload application
   wkld_parser = subparsers.add_parser('wkld', help='Run workload generator')
-  # comparable with wrk2 > ./wrk options
   wkld_parser.add_argument('-u', '--users', type=int, default=1, help="Number of users")
   wkld_parser.add_argument('-d', '--duration', type=int, default='1', help="Duration in seconds")
   wkld_parser.add_argument('-r', '--rate', type=int, default=1, help="Work rate (throughput) in request per second")
