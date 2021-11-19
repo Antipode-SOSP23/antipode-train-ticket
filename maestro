@@ -252,10 +252,6 @@ def wkld(args):
   # tag for this deployment
   tag = f"{datetime.now().strftime('%Y%m%d%H%M%S')}"
 
-  # create gather folder
-  gather_path = ROOT_PATH / 'gather' / tag
-  os.makedirs(gather_path, exist_ok=True)
-
   # create deploy folder
   deploy_path = ROOT_PATH / 'deploy' / tag
   os.makedirs(deploy_path, exist_ok=True)
@@ -272,7 +268,7 @@ def wkld(args):
       master:
         build: .
         working_dir: /mnt/locust
-        command: -f locustfile.py --master -H http://master:8089 --headless --reset-stats --only-summary --html {{ report_prefix }}.html --csv {{ report_prefix }} --run-time {{ run_time }} -u {{ users }}
+        command: -f locustfile.py --master -H http://master:8089 --expect-workers {{ num_workers }} --headless --reset-stats --only-summary --logfile {{ report_prefix }}.err --html {{ report_prefix }}.html --csv {{ report_prefix }} --run-time {{ run_time }} -u {{ users }}
         environment:
           AUTH_SERVICE_URL: {{ auth_service_url }}
           CANCEL_SERVICE_URL: {{ cancel_service_url }}
@@ -325,9 +321,30 @@ def wkld(args):
     _dump_yaml(p, { 'order_ids': oos })
     print(f"[SAVED] '{p}'")
 
+  # run locust and remove containers
   with local.cwd(deploy_path):
     docker_compose['up'] & FG
-    docker_compose['down'] & FG
+    # save log from master in
+    (docker_compose['logs', '--no-color', '--no-log-prefix', 'master'] > f"master.out" )& FG
+    # save log from workers
+    for worker_id in range(args['clients']):
+      (docker_compose['logs', '--no-color', '--no-log-prefix', f"worker_{worker_id}"] > f"worker_{worker_id}.out" )& FG
+    # remove and clean containers
+    docker_compose['down', '--rmi', 'local', '-v'] & FG
+
+  # create gather folder
+  gather_path = ROOT_PATH / 'gather' / tag
+  os.makedirs(gather_path, exist_ok=True)
+  # now move the gather files to the gather directory
+  shutil.move(deploy_path / f"{tag}.err", gather_path / f"master_log.err")
+  shutil.move(deploy_path / f"master.out", gather_path / f"master.out")
+  for worker_id in range(args['clients']):
+    shutil.move(deploy_path / f"worker_{worker_id}.out", gather_path / f"worker_{worker_id}.out")
+  shutil.move(deploy_path / f"{tag}.html", gather_path / f"report.html")
+  shutil.move(deploy_path / f"{tag}_exceptions.csv", gather_path / f"exceptions.csv")
+  shutil.move(deploy_path / f"{tag}_failures.csv", gather_path / f"failures.csv")
+  shutil.move(deploy_path / f"{tag}_stats_history.csv", gather_path / f"stats_history.csv")
+  shutil.move(deploy_path / f"{tag}_stats.csv", gather_path / f"stats.csv")
 
 
 #--------------
