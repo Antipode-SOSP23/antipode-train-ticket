@@ -113,24 +113,27 @@ def info(args):
 # BUILD
 #--------------
 def build(args):
-  from plumbum import FG
-  from plumbum.cmd import mvn, docker_compose, find
+  from plumbum import local, FG
+  from plumbum.cmd import docker, docker_compose, find
 
-  # Dependencies:
-  #   sudo apt-get update
-  #   sudo apt-get install -y software-properties-common
-  #   sudo apt-add-repository 'deb http://security.debian.org/debian-security stretch/updates main'
-  #   sudo apt-get update
-  #   sudo apt-get install -y openjdk-8-jdk maven
-
-  os.chdir(APP_PATH)
-  # remove target directories - maven was not cleaning
-  find['.', '-type', 'd', '-name', 'target', '-exec', 'rm', '-rf', '{}', '+'] & FG
-  # build from source
-  # ref: https://github.com/FudanSELab/train-ticket/wiki/Installation-Guide
-  mvn['clean', 'package', '-Dmaven.test.skip=true'] & FG
-  time.sleep(1) # wait in between commands due to jar generation delay??
-  docker_compose['build'] & FG
+  with local.cwd(APP_PATH):
+    # remove target directories - maven was not cleaning
+    find['.', '-type', 'd', '-name', 'target', '-exec', 'rm', '-rf', '{}', '+'] & FG
+    # build from source
+    # ref: https://github.com/FudanSELab/train-ticket/wiki/Installation-Guide
+    mvn = docker['run', '--rm', '-ti',
+      # keep cache between builds
+      '-v', f"{os.environ['HOME']}/.m2:/root/.m2",
+      # mount train ticket folder as working dir
+      '-v', f"{APP_PATH}:/mnt/train-ticket",
+      '-w', '/mnt/train-ticket',
+      'maven:3-openjdk-8-slim',
+      'mvn']
+    mvn['clean', 'package', '-Dmaven.test.skip=true'] & FG
+    time.sleep(1) # wait in between commands due to jar generation delay??
+    docker_compose['build'] & FG
+    if args['push']:
+      docker_compose['push'] & FG
 
 
 #--------------
@@ -322,6 +325,8 @@ def _public_hostname():
 def _service_public_endpoint(name):
   return f"http://{_public_hostname()}:{SERVICES_TO_PORT[name]}"
 
+def _is_inside_docker():
+  return os.path.isfile('/.dockerenv')
 
 #--------------
 # CONSTANTS
@@ -333,6 +338,8 @@ SERVICES = _services()
 SERVICES_TO_PORT = _services_to_port()
 LAST_INFO_FILE = ROOT_PATH / '.last.yml'
 SEED_TO_DURATION_FACTOR = 50 # in 1 second it does less than this
+DEPLOY_TYPES = [ 'local', 'gcp' ]
+
 
 #--------------
 # CLI
@@ -341,12 +348,17 @@ if __name__ == '__main__':
   # parse arguments
   main_parser = argparse.ArgumentParser()
 
+  # deploy flag
+  deploy_type_group = main_parser.add_mutually_exclusive_group(required=False)
+  for dt in DEPLOY_TYPES:
+    deploy_type_group.add_argument(f"--{dt}", action='store_true')
+
   # different commands
   subparsers = main_parser.add_subparsers(help='commands', dest='which')
 
   # info application
   build_parser = subparsers.add_parser('build', help='Build application from source')
-
+  build_parser.add_argument('-push', action='store_true', help="Push images to remote repo")
 
   # info application
   info_parser = subparsers.add_parser('info', help='Application info')
@@ -374,6 +386,17 @@ if __name__ == '__main__':
   # parse args
   args = vars(main_parser.parse_args())
   command = args.pop('which')
+
+  # parse deploy type
+  args['deploy_type'] = None
+  for dt in DEPLOY_TYPES:
+    if args[dt]:
+      args['deploy_type'] = dt
+    del args[dt]
+
+  # only certain commands require a deploy type
+  if args['deploy_type'] is None and command in ['run']:
+    main_parser.error(f"one of the arguments {' '.join(['--'+dp for dp in DEPLOY_TYPES])} is required")
 
   # call parser method dynamically
   getattr(sys.modules[__name__], command)(args)
