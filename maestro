@@ -9,6 +9,38 @@ import time
 
 
 #--------------
+# GCP
+#--------------
+def _gcp_create_vm_from_config(zone, config):
+  import googleapiclient.discovery
+  import json
+
+  compute = googleapiclient.discovery.build('compute', 'v1')
+  try:
+    r = compute.instances().insert(project=GCP_PROJECT_ID, zone=zone, body=config).execute()
+    return r
+  except googleapiclient.errors.HttpError as e:
+    error_info = json.loads(e.args[1])['error']
+    if error_info['code'] == 409 and error_info['errors'][0]['reason'] == 'alreadyExists':
+      print(f"[WARN] Instance '{config['name']}' already exists")
+      # get the existing instance details
+      return compute.instances().get(project=GCP_PROJECT_ID, zone=zone, instance=config['name']).execute()
+    else:
+      pp(error_info)
+      exit(-1)
+
+# Status available:
+#   PROVISIONING, STAGING, RUNNING, STOPPING, SUSPENDING, SUSPENDED, REPAIRING, and TERMINATED
+def _gcp_wait_for_status(zone, id, status):
+  import googleapiclient.discovery
+
+  compute = googleapiclient.discovery.build('compute', 'v1')
+  while True:
+    r = compute.instances().get(project=GCP_PROJECT_ID, zone=zone, instance=id).execute()
+    if r['status'] == status.upper():
+      return
+
+#--------------
 # REST REQUESTS
 #--------------
 def create_contact(user_id, auth_token):
@@ -135,11 +167,135 @@ def build__local(args):
     mvn['clean', 'package', '-Dmaven.test.skip=true'] & FG
     time.sleep(1) # wait in between commands due to jar generation delay??
     docker_compose['build'] & FG
-    if args['push']:
-      docker_compose['push'] & FG
 
 def build__gcp(args):
-  _force_docker()
+  # build local images first
+  if not _is_inside_docker():
+    build__local(args)
+
+  # then force docker
+  _force_gcp_docker()
+  import googleapiclient.discovery
+  from plumbum import local, FG
+  from plumbum.cmd import gcloud, docker
+  from dotenv import dotenv_values
+  import json
+
+  # tag images built localy with GCP tag
+  docker_image_namespace = f"gcr.io/{GCP_PROJECT_ID}"
+  docker_image_tag = "antipode"
+  with local.cwd(APP_PATH):
+    config = dotenv_values(".env")
+    built_images = { s.split('|')[0] : s.split('|')[1] for s in docker['images', f"{config['NAMESPACE']}/*", '--format', "{{.ID}}|{{.Repository}}"]().split('\n') if s}
+    for image_id, image_name in built_images.items():
+      base_image_name = image_name.split('/')[-1]
+      gcp_image_name = f"{docker_image_namespace}/{base_image_name}:{docker_image_tag}"
+      docker['tag', image_id, gcp_image_name] & FG
+      docker['push', gcp_image_name] & FG
+      docker['rmi', gcp_image_name] & FG
+
+  # Create base VM
+  compute = googleapiclient.discovery.build('compute', 'v1')
+  image_response = compute.images().getFromFamily(project='debian-cloud', family='debian-10').execute()
+  source_disk_image = image_response['selfLink']
+  name = 'antipode-dev-tt'
+  zone = 'us-east1-b'
+  machine_type = 'f1-micro'
+  config = {
+    'name': name,
+    'machineType': f"zones/{zone}/machineTypes/{machine_type}",
+    'disks': [
+      {
+        'boot': True,
+        'autoDelete': True,
+        'initializeParams': {
+          'sourceImage': source_disk_image,
+        }
+      }
+    ],
+    'hostname': 'antipode-dev.tt',
+    # Specify a network interface with NAT to access the public internet.
+    'networkInterfaces': [
+      {
+        'network': 'global/networks/default',
+        'accessConfigs': [
+          {'type': 'ONE_TO_ONE_NAT', 'name': 'External NAT'}
+        ]
+      }
+    ],
+    # tags for firewall rules
+    "tags": {
+      "items": [],
+    },
+  }
+  r = _gcp_create_vm_from_config(zone, config)
+  # start the vm if not running
+  compute.instances().start(project=GCP_PROJECT_ID, zone=zone, instance=r['id']).execute()
+  _gcp_wait_for_status(zone, r['id'], 'RUNNING')
+  time.sleep(10) # extra time to avoid ssh errors
+
+  # In order to get the .ssh folder
+  # 1) Start a local GCP container
+  # 2) Go the the GCP console, and in the SSH context menu, copy the gcloud command, it will look something like:
+  #    $ gcloud beta compute ssh --zone "europe-west3-c" "antipode-dev-tt" --project "pluribus"
+  # 3) Paste the above command in the container and let it run
+  # 4) Copy the files from the container to outside
+  #       docker cp <CONTAINER ID>:/root/.ssh/google_compute_engine .
+  #       docker cp <CONTAINER ID>:/root/.ssh/google_compute_engine.pub .
+
+  # copy and execute base_vm script
+  gcloud['compute', 'scp', 'gcp/base_vm.sh', 'gcp/pluribus.json', f"{GCP_SSH_USER}@{name}:/tmp/"] & FG
+  gcloud['compute', 'ssh', f"{GCP_SSH_USER}@{name}", '--command', 'bash /tmp/base_vm.sh'] & FG
+
+  # stop machine
+  compute.instances().stop(project=GCP_PROJECT_ID, zone=zone, instance=r['id']).execute()
+  _gcp_wait_for_status(zone, r['id'], 'TERMINATED')
+
+  # built image based on the image of this machine
+  image_config = {
+    "kind": "compute#image",
+    "name": "antipode-tt",
+    "sourceDisk": "projects/pluribus/zones/us-east1-b/disks/antipode-dev-tt",
+    "storageLocations": [
+      "us"
+    ]
+  }
+
+  # check if there is already an image - delete if necessary
+  try:
+    image_r = compute.images().get(project=GCP_PROJECT_ID, image=image_config['name']).execute()
+    # if no exception delete the image
+    print("[INFO] Image already exists - deleting!")
+    image_r = compute.images().delete(project=GCP_PROJECT_ID, image=image_config['name']).execute()
+    pp(image_r)
+    exit()
+  except googleapiclient.errors.HttpError as e:
+    error_info = json.loads(e.args[1])['error']
+    if error_info['code'] == 404:
+      pass
+    else:
+      raise(e)
+
+  # create the new image
+  image_r = compute.images().insert(project=GCP_PROJECT_ID, body=image_config).execute()
+
+  # find all used ports
+  firewall_rules = compute.firewalls().list(project=GCP_PROJECT_ID, filter=None).execute()['items']
+  for frule in firewall_rules:
+    if frule['name'] == 'portainer':
+      print("[INFO] Firewall rule for portainer found")
+    elif frule['name'] == 'swarm':
+      print("[INFO] Firewall rule for swarm found")
+    elif frule['name'] == 'nodes':
+      print("[INFO] Firewall rule for nodes found")
+      tcp_rule = [ e for e in frule['allowed'] if e['IPProtocol'] == 'tcp' ][0]
+      ports = [ str(e) for e in sorted(set([ int(r) for r in tcp_rule['ports'] ])) ]
+      # check ports
+      docker_compose_ports = [ e.split(':')[0] for e in _flat_list([ sinfo['ports'] for sname, sinfo in _load_yaml(APP_PATH / 'docker-compose.yml')['services'].items() if 'ports' in sinfo]) ]
+      if (set(docker_compose_ports) - set(ports)):
+        print("[ERROR] Missing ports on firewall rule!")
+        exit(-1)
+
 
 
 #--------------
@@ -334,15 +490,36 @@ def _service_public_endpoint(name):
 def _is_inside_docker():
   return os.path.isfile('/.dockerenv')
 
-def _force_docker():
-  if not _is_inside_docker():
-    from plumbum import FG
-    from plumbum.cmd import docker
+def _force_gcp_docker():
+  if _is_inside_docker():
+    return
 
-    # if image is not built, we do it
-    if docker['images', 'gcp-manager:antipode', '--format', '"{{.ID}}"']().strip() == '':
-      os.chdir(ROOT_PATH / 'gcp')
-      docker['build', '-t', 'gcp-manager:antipode', '.'] & FG
+  from plumbum import local, FG
+  from plumbum.cmd import docker
+  import subprocess
+
+  # if image is not built, we do it
+  if docker['images', GCP_DOCKER_IMAGE_NAME, '--format', '"{{.ID}}"']().strip() == '':
+    with local.cwd(ROOT_PATH / 'gcp'):
+      docker['build', '-t', GCP_DOCKER_IMAGE_NAME, '.'] & FG
+
+  args = list()
+  args.extend(['docker', 'run', '--rm', '-it',
+    # run docker from host inside the container
+    '-v', '/var/run/docker.sock:/var/run/docker.sock',
+    '-v', '/usr/bin/docker:/usr/bin/docker',
+    '-v', '/usr/bin/docker-compose:/usr/bin/docker-compose',
+    # volumes
+    '-v', f"{ROOT_PATH}:/mnt/code",
+    '-v', f"{ROOT_PATH / 'gcp' / '.ssh'}:/root/.ssh",
+    '-w', '/mnt/code',
+    #
+    GCP_DOCKER_IMAGE_NAME
+  ])
+  args = args + sys.argv
+  # print(' '.join(args))
+  subprocess.call(args)
+  exit()
 
 
 #--------------
