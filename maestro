@@ -95,18 +95,18 @@ def info(args):
     print(f"\tts-inside-payment-service:\t{_service_public_endpoint('ts-inside-payment-service')}/swagger-ui.html#/inside-payment-controller")
 
   if args['ps']:
-    from plumbum import FG
+    from plumbum import local, FG
     from plumbum.cmd import docker_compose
 
-    os.chdir(APP_PATH)
-    docker_compose['-f', DOCKER_COMPOSE_FILE, 'ps'] & FG
+    with local.cwd(APP_PATH):
+      docker_compose['-f', DOCKER_COMPOSE_FILE, 'ps'] & FG
 
   if args['logs']:
-    from plumbum import FG
+    from plumbum import local, FG
     from plumbum.cmd import docker_compose
 
-    os.chdir(APP_PATH)
-    docker_compose['-f', DOCKER_COMPOSE_FILE, 'logs', args['logs']] & FG
+    with local.cwd(APP_PATH):
+      docker_compose['-f', DOCKER_COMPOSE_FILE, 'logs', args['logs']] & FG
 
 
 #--------------
@@ -146,29 +146,26 @@ def build__gcp(args):
 # RUN
 #--------------
 def run(args):
-  from plumbum import FG
-  from plumbum import local
+  from plumbum import local, FG
   from plumbum.cmd import docker_compose
 
-  os.chdir(APP_PATH)
-
-  with local.env(COMPOSE_HTTP_TIMEOUT=180):
-    docker_compose['-f', DOCKER_COMPOSE_FILE, 'up'] & FG
+  with local.cwd(APP_PATH):
+    with local.env(COMPOSE_HTTP_TIMEOUT=180):
+      docker_compose['-f', DOCKER_COMPOSE_FILE, 'up'] & FG
 
 
 #--------------
 # CLEAN
 #--------------
 def clean(args):
-  from plumbum import FG
-  from plumbum.cmd import docker
-  from plumbum.cmd import docker_compose
+  from plumbum import local, FG
+  from plumbum.cmd import docker, docker_compose
 
-  os.chdir(APP_PATH)
 
-  docker_compose['-f', DOCKER_COMPOSE_FILE, 'down'] & FG
-  # cleaning system because train consumes a lot of memory/disk
-  docker['system', 'prune', '--volumes', '-f'] & FG
+  with local.cwd(APP_PATH):
+    docker_compose['-f', DOCKER_COMPOSE_FILE, 'down'] & FG
+    # cleaning system because train consumes a lot of memory/disk
+    docker['system', 'prune', '--volumes', '-f'] & FG
 
 
 #--------------
@@ -324,6 +321,9 @@ def _split_list(a, n):
     k, m = divmod(len(a), n)
     return list(a[i*k+min(i, m):(i+1)*k+min(i+1, m)] for i in range(n))
 
+def _flat_list(l):
+  return [item for sublist in l for item in sublist]
+
 def _public_hostname():
   from plumbum.cmd import hostname
   return hostname['-I']().split()[1]
@@ -348,6 +348,7 @@ def _force_docker():
 #--------------
 # CONSTANTS
 #--------------
+SCRIPT_NAME = __file__.rsplit("/", 1)[1].split('.')[0]
 ROOT_PATH = Path(os.path.abspath(os.path.dirname(sys.argv[0])))
 APP_PATH = ROOT_PATH / 'train-ticket'
 DOCKER_COMPOSE_FILE = APP_PATH / 'docker-compose.yml'
@@ -357,6 +358,8 @@ LAST_INFO_FILE = ROOT_PATH / '.last.yml'
 SEED_TO_DURATION_FACTOR = 50 # in 1 second it does less than this
 DEPLOY_TYPES = [ 'local', 'gcp' ]
 GCP_PROJECT_ID = 'pluribus'
+GCP_DOCKER_IMAGE_NAME = 'gcp-manager:antipode'
+GCP_SSH_USER = 'jfloff'
 
 
 #--------------
