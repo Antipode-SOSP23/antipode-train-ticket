@@ -113,6 +113,9 @@ def info(args):
 # BUILD
 #--------------
 def build(args):
+  getattr(sys.modules[__name__], f"build__{args.pop('deploy_type')}")(args)
+
+def build__local(args):
   from plumbum import local, FG
   from plumbum.cmd import docker, docker_compose, find
 
@@ -134,6 +137,9 @@ def build(args):
     docker_compose['build'] & FG
     if args['push']:
       docker_compose['push'] & FG
+
+def build__gcp(args):
+  _force_docker()
 
 
 #--------------
@@ -328,6 +334,17 @@ def _service_public_endpoint(name):
 def _is_inside_docker():
   return os.path.isfile('/.dockerenv')
 
+def _force_docker():
+  if not _is_inside_docker():
+    from plumbum import FG
+    from plumbum.cmd import docker
+
+    # if image is not built, we do it
+    if docker['images', 'gcp-manager:antipode', '--format', '"{{.ID}}"']().strip() == '':
+      os.chdir(ROOT_PATH / 'gcp')
+      docker['build', '-t', 'gcp-manager:antipode', '.'] & FG
+
+
 #--------------
 # CONSTANTS
 #--------------
@@ -339,6 +356,7 @@ SERVICES_TO_PORT = _services_to_port()
 LAST_INFO_FILE = ROOT_PATH / '.last.yml'
 SEED_TO_DURATION_FACTOR = 50 # in 1 second it does less than this
 DEPLOY_TYPES = [ 'local', 'gcp' ]
+GCP_PROJECT_ID = 'pluribus'
 
 
 #--------------
@@ -349,14 +367,14 @@ if __name__ == '__main__':
   main_parser = argparse.ArgumentParser()
 
   # deploy flag
-  deploy_type_group = main_parser.add_mutually_exclusive_group(required=False)
+  deploy_type_group = main_parser.add_mutually_exclusive_group(required=True)
   for dt in DEPLOY_TYPES:
     deploy_type_group.add_argument(f"--{dt}", action='store_true')
 
   # different commands
   subparsers = main_parser.add_subparsers(help='commands', dest='which')
 
-  # info application
+  # build application
   build_parser = subparsers.add_parser('build', help='Build application from source')
   build_parser.add_argument('-push', action='store_true', help="Push images to remote repo")
 
@@ -393,10 +411,6 @@ if __name__ == '__main__':
     if args[dt]:
       args['deploy_type'] = dt
     del args[dt]
-
-  # only certain commands require a deploy type
-  if args['deploy_type'] is None and command in ['run']:
-    main_parser.error(f"one of the arguments {' '.join(['--'+dp for dp in DEPLOY_TYPES])} is required")
 
   # call parser method dynamically
   getattr(sys.modules[__name__], command)(args)
