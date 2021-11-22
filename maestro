@@ -557,6 +557,11 @@ def deploy__gcp(args):
     ] & FG
 
     # deploy train ticket
+    ansible_playbook['tt-deploy.yml',
+      '-i', inventory_filepath,
+      '-e', f"deploy_path={deploy_path}",
+    ] & FG
+
 
 #--------------
 # RUN
@@ -597,6 +602,9 @@ def run__gcp(args):
       ansible_playbook['portainer-run.yml', '-i', inventory_filepath] & FG
       _wait_url_up(f"http://{inventory[GCP_SWARM_MANAGER_NAME]['external_ip']}:9000")
 
+  # start tt services
+  with local.cwd(ROOT_PATH / 'gcp'):
+    ansible_playbook['tt-run.yml', '-i', inventory_filepath] & FG
 
 
 #--------------

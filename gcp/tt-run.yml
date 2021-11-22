@@ -1,0 +1,38 @@
+---
+- hosts: swarm_manager
+  gather_facts: no
+  become: yes
+  any_errors_fatal: true
+
+  tasks:
+    - name: Run train-ticket stack
+      shell: >
+        docker stack deploy --with-registry-auth --compose-file /code/deploy/docker-compose.yml train-ticket
+      register: out
+      failed_when: "not(out.rc == 0) or 'fail' in out.stderr"
+
+    - name: Check number of services running
+      shell: >
+        docker stack services train-ticket --format {% raw %}'{{.Name}}|{{.Replicas}}'{%endraw%} | wc -l
+      register: num_services
+
+    - name: Ensure all stack is running
+      shell: >
+        docker stack services train-ticket --format {% raw %}'{{.Name}}|{{.Replicas}}'{%endraw%} | grep '1/1' | wc -l
+      register: num_deployed_services
+      retries: 10
+      delay: 30
+      # compare number of services spawned with
+      until: (num_deployed_services.stdout | int) == (num_services.stdout | int)
+
+# TODO: Curl the key services for the /HELLO API endpoint
+# - hosts: compose-post.pluribus
+#   gather_facts: no
+#   become: yes
+#   any_errors_fatal: true
+
+#   tasks:
+#     - name: Wait for compose-post-service to be ready for posts by creating dockerize.sync file
+#       shell: >
+#           docker exec $( docker ps -a --filter name='compose-post-service' --filter status=running --format {% raw %}'{{ .ID }}'{% endraw %} ) dockerize -wait file:///tmp/dockerize.sync -wait-retry-interval 10s -timeout 300s
+#       ignore_errors: True

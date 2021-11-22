@@ -19,6 +19,8 @@
     - name: Make worker nodes leave the Swarm
       shell: docker swarm leave -f
       register: out
+      retries: 10
+      delay: 10
       failed_when: "not(out.rc == 0 or 'This node is not part of a swarm' in out.stderr)"
 
     - name: Prune docker system

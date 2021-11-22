@@ -1,0 +1,37 @@
+---
+- hosts: swarm_manager
+  any_errors_fatal: true
+  gather_facts: no
+  become: no
+
+  tasks:
+    - name: Create deploy folder
+      file:
+        path: /code/deploy/
+        state: directory
+
+    - name: Upload ansible inventory
+      synchronize:
+        src: "{{ deploy_path }}/"
+        dest: /code/deploy
+        use_ssh_args: yes
+        mode: push
+
+- hosts: all
+  any_errors_fatal: true
+  become: no
+  gather_facts: no
+
+  tasks:
+    - name: Create 'train-ticket' folder
+      file:
+        path: /code/train-ticket
+        state: directory
+
+    # - name: Upload application 'train-ticket' folder
+    #   synchronize:
+    #     src: {{ train_ticket_filepath }}
+    #     dest: "/code/train_ticket"
+    #     use_ssh_args: yes
+    #     recursive: true
+    #     mode: push
