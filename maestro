@@ -477,10 +477,11 @@ def deploy__gcp(args):
 
   # run playbooks
   with local.cwd(ROOT_PATH / 'gcp'):
-    # copy all the needed files to remote
-    ansible_playbook['deploy-prometheus.yml', '-i', inventory_filepath] & FG
-    # then deploy everywhere
-    # ansible_playbook['deploy-swarm.yml'] & FG
+    if args['prometheus']:
+      ansible_playbook['deploy-prometheus.yml',
+        '-i', inventory_filepath
+      ] & FG
+
 
   exit()
 
@@ -757,6 +758,7 @@ if __name__ == '__main__':
   # deploy application
   deploy_parser = subparsers.add_parser('deploy', help='Deploy application')
   deploy_parser.add_argument('-config', help="Deploy configuration")
+  deploy_parser.add_argument('-prometheus', action='store_true', help="Deploy configuration")
 
   # info application
   info_parser = subparsers.add_parser('info', help='Application info')
