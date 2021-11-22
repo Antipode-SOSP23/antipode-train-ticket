@@ -362,6 +362,11 @@ def deploy__gcp(args):
     # replace hostname constraint
     deploy_constraints.insert(hostname_index, f"node.hostname == {node_id}")
 
+  for _, service_info in compose['services'].items():
+    if 'image' in service_info:
+      if '${NAMESPACE}' in service_info['image']:
+        service_info['image'] = service_info['image'].replace('${NAMESPACE}', GCP_DOCKER_IMAGE_NAMESPACE).replace('${TAG}', GCP_DOCKER_IMAGE_TAG)
+
   # now write the new compose into a new file
   _dump_yaml(deploy_path / 'docker-compose.yml', compose)
   print(f"[SAVED] '{deploy_path / 'docker-compose.yml'}'")
