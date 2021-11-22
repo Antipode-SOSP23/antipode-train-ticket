@@ -19,6 +19,9 @@ fi
 sudo gcloud auth activate-service-account --key-file=/tmp/pluribus.json
 sudo gcloud auth configure-docker
 
+# Allow ssh root login
+sudo sed -i 's/PermitRootLogin no/PermitRootLogin yes/g' /etc/ssh/sshd_config
+
 # pull public images
 sudo docker pull rabbitmq:management
 sudo docker pull jaegertracing/all-in-one
