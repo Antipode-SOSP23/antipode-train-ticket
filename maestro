@@ -198,6 +198,28 @@ def info__gcp(args):
     print(f"\tts-cancel-service:\t\thttp://{inventory[config['services']['ts-cancel-service']]['external_ip']}/swagger-ui.html#!/cancel-controller")
     print(f"\tts-inside-payment-service:\thttp://{inventory[config['services']['ts-inside-payment-service']]['external_ip']}/swagger-ui.html#/inside-payment-controller")
 
+  if args['ps']:
+    from plumbum import FG
+    from plumbum.cmd import gcloud
+
+    service_details = inventory[GCP_SWARM_MANAGER_NAME]
+
+    gcloud['compute', 'ssh', f"root@{GCP_SWARM_MANAGER_NAME}",
+      '--zone', service_details['gcp_zone'],
+      # '--command', f"docker stack ps {GCP_SWARM_STACK_NAME}"
+      '--command', f"docker stack services {GCP_SWARM_STACK_NAME}"
+    ] & FG
+
+  if args['logs']:
+    from plumbum import FG
+    from plumbum.cmd import gcloud
+
+    service_details = inventory[config['services'][args['logs']]]
+
+    gcloud['compute', 'ssh', f"root@{GCP_SWARM_MANAGER_NAME}",
+      '--zone', service_details['gcp_zone'],
+      '--command', f"docker service logs {GCP_SWARM_STACK_NAME}_{args['logs']}"
+    ] & FG
 
 
 #--------------
