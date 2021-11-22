@@ -8,7 +8,8 @@
 
   tasks:
     - name: Check if Swarm has already been Initialized
-      shell: docker node ls
+      shell: >
+        docker node ls
       register: swarm_status
       failed_when: "not(swarm_status.rc == 0 or 'This node is not a swarm manager.' in swarm_status.stderr)"
 
@@ -23,7 +24,8 @@
       register: manager_token
 
     - name: Get the worker join-token
-      shell: docker swarm join-token --quiet worker
+      shell: >
+        docker swarm join-token --quiet worker
       register: worker_token
 
     - name: Save workers token

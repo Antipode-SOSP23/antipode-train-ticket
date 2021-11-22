@@ -482,12 +482,6 @@ def deploy__gcp(args):
 
   # run playbooks
   with local.cwd(ROOT_PATH / 'gcp'):
-    if args['prometheus']:
-      ansible_playbook['deploy-prometheus.yml',
-        '-i', inventory_filepath
-      ] & FG
-
-
     # deploy swarm
     ansible_playbook['deploy-swarm.yml',
       '-i', inventory_filepath,
@@ -500,12 +494,35 @@ def deploy__gcp(args):
 # RUN
 #--------------
 def run(args):
+  getattr(sys.modules[__name__], f"run__{args.pop('deploy_type')}")(args)
+
+def run__local(args):
   from plumbum import local, FG
   from plumbum.cmd import docker_compose
 
   with local.cwd(APP_PATH):
     with local.env(COMPOSE_HTTP_TIMEOUT=180):
       docker_compose['-f', DOCKER_COMPOSE_FILE, 'up'] & FG
+
+def run__gcp(args):
+  _force_gcp_docker()
+  from plumbum import local, FG
+  from plumbum.cmd import ansible_playbook
+
+  tag = _get_last('deploy_tag')
+  deploy_path = ROOT_PATH / 'deploy' / tag
+  inventory_filepath = deploy_path / 'inventory.cfg'
+  inventory = _load_inventory(inventory_filepath)
+
+  # run playbooks
+  if args['prometheus']:
+    with local.cwd(ROOT_PATH / 'gcp'):
+      ansible_playbook['deploy-prometheus.yml', '-i', inventory_filepath] & FG
+      ansible_playbook['run-prometheus.yml', '-i', inventory_filepath] & FG
+      #
+      prometheus_url = f"http://{inventory[GCP_SWARM_MANAGER_NAME]['external_ip']}:9090/graph?g0.expr=100%20-%20(avg%20by%20(instance)%20(irate(node_cpu_seconds_total%7Bjob%3D%22nodeexporter%22%2Cmode%3D%22idle%22%7D%5B5m%5D))%20*%20100)&g0.tab=0&g0.stacked=0&g0.range_input=10m&g0.step_input=1&g1.expr=(node_memory_MemTotal_bytes%20-%20node_memory_MemFree_bytes)%2Fnode_memory_MemTotal_bytes%20*100&g1.tab=0&g1.stacked=0&g1.range_input=10m&g1.step_input=1&g2.expr=(node_filesystem_size_bytes%7Bmountpoint%3D%22%2F%22%7D%20-%20node_filesystem_free_bytes%7Bmountpoint%3D%22%2F%22%7D)%2Fnode_filesystem_size_bytes%7Bmountpoint%3D%22%2F%22%7D%20*100&g2.tab=0&g2.stacked=0&g2.range_input=10m&g2.step_input=1&g3.expr=rate(node_network_transmit_bytes_total%7Bdevice%3D%22ens4%22%7D%5B10s%5D)*8%2F1024%2F1024&g3.tab=0&g3.stacked=0&g3.range_input=10m&g3.step_input=1"
+      _wait_url_up(prometheus_url)
+      print(f"[INFO] Prometheus link: {prometheus_url}")
 
 
 #--------------
@@ -725,6 +742,39 @@ def _force_gcp_docker():
   subprocess.call(args)
   exit()
 
+def _wait_url_up(url):
+  import urllib.request
+
+  while True:
+    try:
+      return_code = urllib.request.urlopen(url).getcode()
+      if return_code == 200:
+        return
+    except ConnectionRefusedError as e:
+      pass
+
+def _load_inventory(filepath):
+  from ansible.parsing.dataloader import DataLoader
+  from ansible.inventory.manager import InventoryManager
+  from ansible.vars.manager import VariableManager
+
+  loader = DataLoader()
+  inventory = InventoryManager(loader=loader, sources=str(filepath))
+  variable_manager = VariableManager(loader=loader, inventory=inventory)
+
+  # other methods:
+  # - inventory.get_host('manager.antipode-296620').vars
+
+  loaded_inventory = {}
+  for hostname,info in inventory.hosts.items():
+    loaded_inventory[info.vars['gcp_name']] = {
+      'external_ip': info.vars['ansible_host'],
+      'internal_ip': info.vars['gcp_host'],
+      'zone': info.vars['gcp_zone'],
+      'hostname': hostname,
+    }
+
+  return loaded_inventory
 
 #--------------
 # CONSTANTS
@@ -746,6 +796,7 @@ GCP_DOCKER_IMAGE_TAG = "antipode"
 GCP_DEFAULT_SSH_USER = 'jfloff'
 GCP_MACHINE_IMAGE_NAME = 'antipode-tt'
 GCP_MACHINE_IMAGE_LINK = f"https://www.googleapis.com/compute/v1/projects/{GCP_PROJECT_ID}/global/images/{GCP_MACHINE_IMAGE_NAME}"
+GCP_SWARM_MANAGER_NAME = 'manager-tt'
 
 
 #--------------
@@ -769,7 +820,6 @@ if __name__ == '__main__':
   # deploy application
   deploy_parser = subparsers.add_parser('deploy', help='Deploy application')
   deploy_parser.add_argument('-config', help="Deploy configuration")
-  deploy_parser.add_argument('-prometheus', action='store_true', help="Deploy configuration")
 
   # info application
   info_parser = subparsers.add_parser('info', help='Application info')
@@ -779,6 +829,8 @@ if __name__ == '__main__':
 
   # run application
   run_parser = subparsers.add_parser('run', help='Run application')
+  run_parser.add_argument('-prometheus', action='store_true', help="Run with prometheus enabled")
+  run_parser.add_argument('-portainer', action='store_true', help="Run with portainer enabled")
 
   # clean application
   clean_parser = subparsers.add_parser('clean', help='Clean application')
