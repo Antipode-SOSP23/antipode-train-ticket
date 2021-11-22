@@ -488,6 +488,12 @@ def deploy__gcp(args):
       ] & FG
 
 
+    # deploy swarm
+    ansible_playbook['deploy-swarm.yml',
+      '-i', inventory_filepath,
+      '-e', f"swarm_overlay_network={DOCKER_COMPOSE_NETWORK}",
+    ] & FG
+
   exit()
 
 #--------------
