@@ -1,0 +1,21 @@
+---
+- hosts: swarm_manager
+  gather_facts: no
+  become: no
+  any_errors_fatal: true
+
+  tasks:
+    - name: Ensures portainer configuration dir exists
+      file: path=/code/portainer state=directory
+
+    - name: Copy portainer docker-compose file
+      copy:
+        src: docker-compose-portainer.yml
+        dest: /code/portainer/docker-compose.yml
+        mode: u=rwx,g=r,o=xr
+
+    - name: Run Portainer
+      shell: >
+        docker stack deploy --compose-file /code/portainer/docker-compose.yml management;
+      register: out
+      failed_when: "not(out.rc == 0) or 'fail' in out.stderr"

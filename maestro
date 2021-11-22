@@ -524,6 +524,14 @@ def run__gcp(args):
       _wait_url_up(prometheus_url)
       print(f"[INFO] Prometheus link: {prometheus_url}")
 
+  if args['portainer']:
+    with local.cwd(ROOT_PATH / 'gcp'):
+      ansible_playbook['run-portainer.yml', '-i', inventory_filepath] & FG
+      #
+      portainer_url = f"http://{inventory[GCP_SWARM_MANAGER_NAME]['external_ip']}:9000"
+      print(f"[INFO] Portainer link (u/pwd: admin/antipode): {portainer_url}")
+      _wait_url_up(portainer_url)
+
 
 #--------------
 # CLEAN
