@@ -11,34 +11,39 @@ import time
 #--------------
 # GCP
 #--------------
-def _gcp_create_vm_from_config(zone, config):
+def _gcp_vm_create(zone, config):
   import googleapiclient.discovery
   import json
 
   compute = googleapiclient.discovery.build('compute', 'v1')
   try:
-    r = compute.instances().insert(project=GCP_PROJECT_ID, zone=zone, body=config).execute()
-    return r
+    compute.instances().insert(project=GCP_PROJECT_ID, zone=zone, body=config).execute()
+    return _gcp_vm_get(zone=zone, name=config['name'])
   except googleapiclient.errors.HttpError as e:
     error_info = json.loads(e.args[1])['error']
     if error_info['code'] == 409 and error_info['errors'][0]['reason'] == 'alreadyExists':
       print(f"[WARN] Instance '{config['name']}' already exists")
       # get the existing instance details
-      return compute.instances().get(project=GCP_PROJECT_ID, zone=zone, instance=config['name']).execute()
+      return _gcp_vm_get(zone=zone, name=config['name'])
     else:
       pp(error_info)
       exit(-1)
 
 # Status available:
 #   PROVISIONING, STAGING, RUNNING, STOPPING, SUSPENDING, SUSPENDED, REPAIRING, and TERMINATED
-def _gcp_wait_for_status(zone, id, status):
+def _gcp_vm_wait_for_status(zone, name, status):
   import googleapiclient.discovery
 
   compute = googleapiclient.discovery.build('compute', 'v1')
   while True:
-    r = compute.instances().get(project=GCP_PROJECT_ID, zone=zone, instance=id).execute()
+    r = _gcp_vm_get(zone=zone, instance=name)
     if r['status'] == status.upper():
       return
+
+def _gcp_vm_get(zone, name):
+  import googleapiclient.discovery
+  compute = googleapiclient.discovery.build('compute', 'v1')
+  return compute.instances().get(project=GCP_PROJECT_ID, zone=zone, instance=name).execute()
 
 #--------------
 # REST REQUESTS
@@ -228,10 +233,10 @@ def build__gcp(args):
       "items": [],
     },
   }
-  r = _gcp_create_vm_from_config(zone, config)
+  r = _gcp_vm_create(zone, config)
   # start the vm if not running
   compute.instances().start(project=GCP_PROJECT_ID, zone=zone, instance=r['id']).execute()
-  _gcp_wait_for_status(zone, r['id'], 'RUNNING')
+  _gcp_vm_wait_for_status(zone, r['id'], 'RUNNING')
   time.sleep(10) # extra time to avoid ssh errors
 
   # In order to get the .ssh folder
@@ -249,12 +254,12 @@ def build__gcp(args):
 
   # stop machine
   compute.instances().stop(project=GCP_PROJECT_ID, zone=zone, instance=r['id']).execute()
-  _gcp_wait_for_status(zone, r['id'], 'TERMINATED')
+  _gcp_vm_wait_for_status(zone, r['id'], 'TERMINATED')
 
   # built image based on the image of this machine
   image_config = {
     "kind": "compute#image",
-    "name": "antipode-tt",
+    "name": GCP_MACHINE_IMAGE_NAME,
     "sourceDisk": "projects/pluribus/zones/us-east1-b/disks/antipode-dev-tt",
     "storageLocations": [
       "us"
@@ -537,6 +542,8 @@ DEPLOY_TYPES = [ 'local', 'gcp' ]
 GCP_PROJECT_ID = 'pluribus'
 GCP_DOCKER_IMAGE_NAME = 'gcp-manager:antipode'
 GCP_SSH_USER = 'jfloff'
+GCP_MACHINE_IMAGE_NAME = 'antipode-tt'
+GCP_MACHINE_IMAGE_LINK = f"https://www.googleapis.com/compute/v1/projects/{GCP_PROJECT_ID}/global/images/{GCP_MACHINE_IMAGE_NAME}"
 
 
 #--------------
