@@ -30,7 +30,7 @@ def _gcp_vm_create(zone, config):
       exit(-1)
 
 # Status available:
-#   PROVISIONING, STAGING, RUNNING, STOPPING, SUSPENDING, SUSPENDED, REPAIRING, and TERMINATED
+#   PROVISIONING, STAGING, RUNNING, STOPPING, SUSPENDING, SUSPENDED, REPAIRING, TERMINATED
 def _gcp_vm_wait_for_status(zone, name, status):
   import googleapiclient.discovery
 
@@ -54,6 +54,24 @@ def _gcp_vm_wait_for_ip(zone, name):
     except KeyError:
       time.sleep(1)
       pass
+
+def _gcp_vm_delete(zone, name):
+  import googleapiclient.discovery
+  import json
+
+  compute = googleapiclient.discovery.build('compute', 'v1')
+  try:
+    compute.instances().delete(project=GCP_PROJECT_ID, zone=zone, instance=name).execute()
+    # wait for delete to be completed
+    while True:
+      _gcp_vm_get(zone, name)
+      time.sleep(1)
+  except googleapiclient.errors.HttpError as e:
+    error_info = json.loads(e.args[1])['error']
+    if error_info['code'] == 404:
+      return
+    else:
+      raise(e)
 
 
 #--------------
@@ -162,6 +180,7 @@ def info(args):
 #--------------
 def build(args):
   getattr(sys.modules[__name__], f"build__{args.pop('deploy_type')}")(args)
+  print("[INFO] Build done!")
 
 def build__local(args):
   from plumbum import local, FG
@@ -322,6 +341,7 @@ def build__gcp(args):
 #--------------
 def deploy(args):
   getattr(sys.modules[__name__], f"deploy__{args.pop('deploy_type')}")(args)
+  print("[INFO] Deploy done!")
 
 def deploy__local(args):
   return
@@ -496,6 +516,7 @@ def deploy__gcp(args):
 #--------------
 def run(args):
   getattr(sys.modules[__name__], f"run__{args.pop('deploy_type')}")(args)
+  print("[INFO] Run done!")
 
 def run__local(args):
   from plumbum import local, FG
@@ -538,14 +559,36 @@ def run__gcp(args):
 # CLEAN
 #--------------
 def clean(args):
+  getattr(sys.modules[__name__], f"clean__{args.pop('deploy_type')}")(args)
+  print("[INFO] Clean done!")
+
+def clean__local(args):
   from plumbum import local, FG
   from plumbum.cmd import docker, docker_compose
-
 
   with local.cwd(APP_PATH):
     docker_compose['-f', DOCKER_COMPOSE_FILE, 'down'] & FG
     # cleaning system because train consumes a lot of memory/disk
     docker['system', 'prune', '--volumes', '-f'] & FG
+
+def clean__gcp(args):
+  _force_gcp_docker()
+  from plumbum import local, FG
+  from plumbum.cmd import ansible_playbook
+
+  tag = _get_last('deploy_tag')
+  deploy_path = ROOT_PATH / 'deploy' / tag
+  inventory_filepath = deploy_path / 'inventory.cfg'
+  inventory = _load_inventory(inventory_filepath)
+
+
+  with local.cwd(ROOT_PATH / 'gcp'):
+    ansible_playbook['swarm-clean.yml', '-i', inventory_filepath] & FG
+
+  if args['strong']:
+    print("[INFO] Removing GCP nodes ...")
+    for _, host in inventory.items():
+      _gcp_vm_delete(host['gcp_zone'], host['gcp_name'])
 
 
 #--------------
@@ -775,14 +818,21 @@ def _load_inventory(filepath):
   # - inventory.get_host('manager.antipode-296620').vars
 
   loaded_inventory = {}
-  for hostname,info in inventory.hosts.items():
-    loaded_inventory[info.vars['gcp_name']] = {
-      'external_ip': info.vars['ansible_host'],
-      'internal_ip': info.vars['gcp_host'],
-      'zone': info.vars['gcp_zone'],
-      'hostname': hostname,
-      'name': info.vars['gcp_name'],
-    }
+  for gcp_hostname,info in inventory.hosts.items():
+    # index by service name
+    e = {}
+    # load hostname manually since its the key for each host
+    e['gcp_hostname'] = gcp_hostname
+    # load all remaining keys
+    for k,v in info.vars.items():
+      e[k] = v
+    # refactor some entries
+    e['external_ip'] = e['ansible_host']
+    e['internal_ip'] = e['gcp_host']
+    del e['ansible_host']
+    del e['gcp_host']
+    # assign new entry
+    loaded_inventory[info.vars['gcp_name']] = e
 
   return loaded_inventory
 
@@ -846,10 +896,7 @@ if __name__ == '__main__':
 
   # clean application
   clean_parser = subparsers.add_parser('clean', help='Clean application')
-
-  # workload application
-  seed_parser = subparsers.add_parser('seed', help='Seed orders')
-  seed_parser.add_argument('-no', '--num-orders', type=int, default=1, help="Number or orders to spawn")
+  clean_parser.add_argument('-strong', action='store_true', help="Strong clean deleting containers or remote nodes")
 
   # workload application
   wkld_parser = subparsers.add_parser('wkld', help='Run workload generator')
