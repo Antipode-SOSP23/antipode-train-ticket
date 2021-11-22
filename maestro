@@ -36,7 +36,7 @@ def _gcp_vm_wait_for_status(zone, name, status):
 
   compute = googleapiclient.discovery.build('compute', 'v1')
   while True:
-    r = _gcp_vm_get(zone=zone, instance=name)
+    r = _gcp_vm_get(zone=zone, name=name)
     if r['status'] == status.upper():
       return
 
@@ -268,12 +268,14 @@ def build__gcp(args):
 
   # check if there is already an image - delete if necessary
   try:
-    image_r = compute.images().get(project=GCP_PROJECT_ID, image=image_config['name']).execute()
+    compute.images().get(project=GCP_PROJECT_ID, image=image_config['name']).execute()
     # if no exception delete the image
     print("[INFO] Image already exists - deleting!")
-    image_r = compute.images().delete(project=GCP_PROJECT_ID, image=image_config['name']).execute()
-    pp(image_r)
-    exit()
+    compute.images().delete(project=GCP_PROJECT_ID, image=image_config['name']).execute()
+    # wait for image to be deleted
+    while True:
+      # 404 exceptions will result into going to except and pass - means we deleted the image sucessfully
+      compute.images().get(project=GCP_PROJECT_ID, image=image_config['name']).execute()
   except googleapiclient.errors.HttpError as e:
     error_info = json.loads(e.args[1])['error']
     if error_info['code'] == 404:
@@ -282,7 +284,11 @@ def build__gcp(args):
       raise(e)
 
   # create the new image
-  image_r = compute.images().insert(project=GCP_PROJECT_ID, body=image_config).execute()
+  compute.images().insert(project=GCP_PROJECT_ID, body=image_config).execute()
+  # wait for image to be ready
+  while True:
+    if compute.images().get(project=GCP_PROJECT_ID, image=image_config['name']).execute()['status'] == 'READY':
+      break
 
   # find all used ports
   firewall_rules = compute.firewalls().list(project=GCP_PROJECT_ID, filter=None).execute()['items']
