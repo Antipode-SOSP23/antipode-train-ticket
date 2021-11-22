@@ -16,6 +16,6 @@
 
     - name: Run Portainer
       shell: >
-        docker stack deploy --compose-file /code/portainer/docker-compose.yml management;
+        docker stack deploy --compose-file /code/portainer/docker-compose.yml portainer ;
       register: out
       failed_when: "not(out.rc == 0) or 'fail' in out.stderr"

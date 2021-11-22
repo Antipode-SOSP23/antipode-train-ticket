@@ -625,6 +625,13 @@ def clean__gcp(args):
   inventory_filepath = deploy_path / 'inventory.cfg'
   inventory = _load_inventory(inventory_filepath)
 
+  if _get_last('prometheus'):
+    with local.cwd(ROOT_PATH / 'gcp'):
+      ansible_playbook['prometheus-clean.yml', '-i', inventory_filepath] & FG
+
+  if _get_last('portainer'):
+    with local.cwd(ROOT_PATH / 'gcp'):
+      ansible_playbook['portainer-clean.yml', '-i', inventory_filepath] & FG
 
   with local.cwd(ROOT_PATH / 'gcp'):
     ansible_playbook['swarm-clean.yml', '-i', inventory_filepath] & FG
