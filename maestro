@@ -849,7 +849,7 @@ def _wait_url_up(url):
       return_code = urllib.request.urlopen(url).getcode()
       if return_code == 200:
         return
-    except ConnectionRefusedError as e:
+    except urllib.error.URLError as e:
       pass
 
 def _load_inventory(filepath):
