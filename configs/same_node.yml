@@ -1,0 +1,91 @@
+clients:
+  client01:
+    hostname: client01.tt
+    zone: us-central1-a
+    machine_type: e2-standard-2
+
+manager:
+  name: manager-tt
+  hostname: manager.tt
+  zone: us-central1-a
+  machine_type: e2-standard-2
+
+
+nodes:
+  snode:
+    hostname: snode.tt
+    zone: us-central1-a
+    machine_type: e2-standard-4
+
+services:
+  rabbitmq: snode
+  jaeger: snode
+  redis: snode
+  ts-ui-dashboard: snode
+  ts-auth-service: snode
+  ts-auth-mongo: snode
+  ts-user-service: snode
+  ts-user-mongo: snode
+  ts-verification-code-service: snode
+  ts-account-mongo: snode
+  ts-route-service: snode
+  ts-route-mongo: snode
+  ts-contacts-service: snode
+  ts-contacts-mongo: snode
+  ts-order-service: snode
+  ts-order-mongo: snode
+  ts-order-other-service: snode
+  ts-order-other-mongo: snode
+  ts-config-service: snode
+  ts-config-mongo: snode
+  ts-station-service: snode
+  ts-station-mongo: snode
+  ts-train-service: snode
+  ts-train-mongo: snode
+  ts-travel-service: snode
+  ts-travel-mongo: snode
+  ts-travel2-service: snode
+  ts-travel2-mongo: snode
+  ts-preserve-service: snode
+  ts-preserve-other-service: snode
+  ts-basic-service: snode
+  ts-ticketinfo-service: snode
+  ts-price-service: snode
+  ts-price-mongo: snode
+  ts-notification-mongo: snode
+  ts-notification-service: snode
+  ts-security-service: snode
+  ts-security-mongo: snode
+  ts-inside-payment-service: snode
+  ts-inside-payment-mongo: snode
+  ts-execute-service: snode
+  ts-payment-service: snode
+  ts-payment-mongo: snode
+  ts-rebook-service: snode
+  ts-rebook-mongo: snode
+  ts-cancel-service: snode
+  ts-assurance-service: snode
+  ts-assurance-mongo: snode
+  ts-seat-service: snode
+  ts-travel-plan-service: snode
+  ts-ticket-office-service: snode
+  ts-ticket-office-mongo: snode
+  ts-news-service: snode
+  ts-news-mongo: snode
+  ts-voucher-mysql: snode
+  ts-voucher-service: snode
+  ts-food-map-service: snode
+  ts-food-map-mongo: snode
+  ts-route-plan-service: snode
+  ts-food-service: snode
+  ts-consign-service: snode
+  ts-consign-mongo: snode
+  ts-consign-price-service: snode
+  ts-consign-price-mongo: snode
+  ts-food-mongo: snode
+  ts-admin-basic-info-service: snode
+  ts-admin-order-service: snode
+  ts-admin-route-service: snode
+  ts-admin-travel-service: snode
+  ts-admin-user-service: snode
+  ts-avatar-service: snode
