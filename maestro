@@ -734,20 +734,19 @@ def _list_index_containing_substring(the_list, substring):
   return 0
 
 def _service_public_endpoint(deploy_type, name):
-  return getattr(sys.modules[__name__], f"_service_public_endpoint__{deploy_type}")(name)
+  public_ip, port = getattr(sys.modules[__name__], f"_service_public_endpoint__{deploy_type}")(name)
+  return f"http://{public_ip}:{port}"
 
 def _service_public_endpoint__local(name):
   from plumbum.cmd import hostname
 
   public_ip = hostname['-I']().split()[1]
   if name == 'portainer':
-    port = 9000
+    return public_ip, 9000
   elif name == 'prometheus':
-    port = 9090
+    return public_ip, 9090
   else:
-    port = SERVICES_TO_PORT[name]
-
-  return f"http://{public_ip}:{port}"
+    return public_ip, SERVICES_TO_PORT[name]
 
 def _service_public_endpoint__gcp(name):
   tag = _get_last('deploy_tag')
@@ -755,16 +754,11 @@ def _service_public_endpoint__gcp(name):
   config = _load_yaml(_get_last('deploy_config'))
 
   if name == 'portainer':
-    public_ip = inventory[GCP_SWARM_MANAGER_NAME]['external_ip']
-    port = 9000
+    return inventory[GCP_SWARM_MANAGER_NAME]['external_ip'], 9000
   elif name == 'prometheus':
-    public_ip = inventory[GCP_SWARM_MANAGER_NAME]['external_ip']
-    port = 9090
+    return inventory[GCP_SWARM_MANAGER_NAME]['external_ip'], 9090
   else:
-    public_ip = inventory[config['services'][name]]['external_ip']
-    port = SERVICES_TO_PORT[name]
-
-  return f"http://{public_ip}:{port}"
+    return inventory[config['services'][name]]['external_ip'], SERVICES_TO_PORT[name]
 
 def _is_inside_docker():
   return os.path.isfile('/.dockerenv')
