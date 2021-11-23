@@ -116,9 +116,8 @@ def info__local(args):
 def info__gcp(args):
   _force_gcp_docker()
 
-  tag = _get_last('deploy_tag')
-  inventory = _load_inventory(ROOT_PATH / 'deploy' / tag / 'inventory.cfg')
-  config = _load_yaml(_get_last('deploy_config'))
+  inventory = _load_inventory(ROOT_PATH / 'deploy' / _get_last('deploy_tag') / 'inventory.cfg')
+  config = _load_yaml(ROOT_PATH / _get_last('deploy_config'))
 
   if args['ps']:
     from plumbum import FG
@@ -323,7 +322,6 @@ def deploy__gcp(args):
   from jinja2 import Environment
   import textwrap
 
-  _put_last('deploy_config', args['config'])
   # TODO: Load tag from .last.file when doing run or wkld gcp
   tag = f"{datetime.now().strftime('%Y%m%d%H%M%S')}"
   _put_last('deploy_tag', tag)
@@ -333,8 +331,9 @@ def deploy__gcp(args):
   os.makedirs(deploy_path, exist_ok=True)
 
   # load the config and the local compose
-  config = _load_yaml(args['config'])
   compose = _load_yaml(DOCKER_COMPOSE_FILE)
+  config = _load_yaml(args['config'])
+  _put_last('deploy_config', args['config'])
 
   # Set external network driver
   compose['networks'][DOCKER_COMPOSE_NETWORK]['external'] = { 'name': DOCKER_COMPOSE_NETWORK }
@@ -749,9 +748,8 @@ def _service_public_endpoint__local(name):
     return public_ip, SERVICES_TO_PORT[name]
 
 def _service_public_endpoint__gcp(name):
-  tag = _get_last('deploy_tag')
-  inventory = _load_inventory(ROOT_PATH / 'deploy' / tag / 'inventory.cfg')
-  config = _load_yaml(_get_last('deploy_config'))
+  inventory = _load_inventory(ROOT_PATH / 'deploy' / _get_last('deploy_tag') / 'inventory.cfg')
+  config = _load_yaml(ROOT_PATH / _get_last('deploy_config'))
 
   if name == 'portainer':
     return inventory[GCP_SWARM_MANAGER_NAME]['external_ip'], 9000
