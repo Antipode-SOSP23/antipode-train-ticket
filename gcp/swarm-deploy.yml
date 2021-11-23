@@ -43,7 +43,9 @@
     #     msg: "{{ hostvars }}"
 
 
-- hosts: cluster
+- hosts:
+    - cluster
+    - clients
   any_errors_fatal: true
   become: no
   gather_facts: no
@@ -66,7 +68,7 @@
   tasks:
     - name: compute the swarm size
       set_fact:
-        swarm_size: "{{ hostvars[inventory_hostname]['groups']['swarm_manager'] | union(hostvars[inventory_hostname]['groups']['cluster']) | unique | length  }}"
+        swarm_size: "{{ hostvars[inventory_hostname]['groups']['swarm_manager'] | union(hostvars[inventory_hostname]['groups']['cluster']) | union(hostvars[inventory_hostname]['groups']['clients']) | unique | length  }}"
 
     - name: print swarm size
       debug:

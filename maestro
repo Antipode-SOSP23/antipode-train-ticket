@@ -489,13 +489,18 @@ def deploy__gcp(args):
     [swarm_manager]
     {{ swarm_manager['hostname'] }} ansible_host={{ swarm_manager['external_ip'] }} gcp_zone={{ swarm_manager['zone'] }} gcp_name={{ swarm_manager['name'] }} gcp_host={{ swarm_manager['internal_ip'] }} ansible_user=root ansible_ssh_private_key_file={{ private_key_path }}
 
-
     [cluster]
-    {% for node in deploy_nodes %}{{ node['hostname'] }} ansible_host={{ node['external_ip'] }} gcp_zone={{ node['zone'] }} gcp_name={{ node['name'] }} gcp_host={{ node['internal_ip'] }} ansible_user=root ansible_ssh_private_key_file={{ private_key_path }}{% endfor %}
+    {% for node in cluster %}{{ node['hostname'] }} ansible_host={{ node['external_ip'] }} gcp_zone={{ node['zone'] }} gcp_name={{ node['name'] }} gcp_host={{ node['internal_ip'] }} ansible_user=root ansible_ssh_private_key_file={{ private_key_path }}
+    {% endfor %}
+
+    [clients]
+    {% for node in clients %}{{ node['hostname'] }} ansible_host={{ node['external_ip'] }} gcp_zone={{ node['zone'] }} gcp_name={{ node['name'] }} gcp_host={{ node['internal_ip'] }} ansible_user=root ansible_ssh_private_key_file={{ private_key_path }}
+    {% endfor %}
   """
   template_render = Environment().from_string(template).render({
     'swarm_manager': inventory['swarm_manager'][0], # only one swarm manager
-    'deploy_nodes': inventory['cluster'],
+    'cluster': inventory['cluster'],
+    'clients': inventory['clients'],
     'private_key_path': str(ROOT_PATH / 'gcp' / '.ssh' / 'google_compute_engine'),
   })
   inventory_filepath = deploy_path / 'inventory.cfg'
@@ -503,22 +508,6 @@ def deploy__gcp(args):
     # remove empty lines and dedent for easier read
     f.write(textwrap.dedent(template_render))
   print(f"[SAVED] '{inventory_filepath}'")
-
-  # build clients ansible inventory
-  template = """
-    [clients]
-    {% for node in clients %}{{ node['hostname'] }} ansible_host={{ node['external_ip'] }} gcp_zone={{ node['zone'] }} gcp_name={{ node['name'] }} gcp_host={{ node['internal_ip'] }} ansible_user=root ansible_ssh_private_key_file={{ private_key_path }}
-    {% endfor %}
-  """
-  template_render = Environment().from_string(template).render({
-    'clients': inventory['clients'],
-    'private_key_path': str(ROOT_PATH / 'gcp' / '.ssh' / 'google_compute_engine'),
-  })
-  client_inventory_filepath = deploy_path / 'clients_inventory.cfg'
-  with open(client_inventory_filepath, 'w') as f:
-    # remove empty lines and dedent for easier read
-    f.write(textwrap.dedent(template_render))
-  print(f"[SAVED] '{client_inventory_filepath}'")
 
   # sleep to give extra time for nodes to be ready to accept requests
   time.sleep(30)
@@ -609,8 +598,6 @@ def clean__gcp(args):
   deploy_path = ROOT_PATH / 'deploy' / tag
   inventory_filepath = deploy_path / 'inventory.cfg'
   inventory = _load_inventory(inventory_filepath)
-  clients_inventory_filepath = deploy_path / 'clients_inventory.cfg'
-  clients_inventory = _load_inventory(clients_inventory_filepath)
 
   if _get_last('prometheus'):
     with local.cwd(ROOT_PATH / 'gcp'):
@@ -628,8 +615,6 @@ def clean__gcp(args):
   if args['strong']:
     print("[INFO] Removing GCP nodes ...")
     for _, host in inventory.items():
-      _gcp_vm_delete(host['gcp_zone'], host['gcp_name'])
-    for _, host in clients_inventory.items():
       _gcp_vm_delete(host['gcp_zone'], host['gcp_name'])
 
 

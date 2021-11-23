@@ -6,7 +6,9 @@
 
   tasks:
     - name: Ensures portainer configuration dir exists
-      file: path=/code/portainer state=directory
+      file:
+        path: /code/portainer
+        state: directory
 
     - name: Copy portainer docker-compose file
       copy:

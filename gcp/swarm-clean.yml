@@ -10,7 +10,9 @@
       ignore_errors: yes
 
 
-- hosts: cluster
+- hosts:
+    - cluster
+    - clients
   any_errors_fatal: true
   become: no
   gather_facts: no
