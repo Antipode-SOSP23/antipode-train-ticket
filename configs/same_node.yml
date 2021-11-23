@@ -3,6 +3,10 @@ clients:
     hostname: client01.tt
     zone: us-central1-a
     machine_type: e2-standard-2
+  client02:
+    hostname: client02.tt
+    zone: us-central1-a
+    machine_type: e2-standard-2
 
 manager:
   name: manager-tt
