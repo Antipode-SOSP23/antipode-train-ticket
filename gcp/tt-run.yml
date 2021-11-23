@@ -21,7 +21,7 @@
         docker stack services train-ticket --format {% raw %}'{{.Name}}|{{.Replicas}}'{%endraw%} | grep '1/1' | wc -l
       register: num_deployed_services
       retries: 10
-      delay: 30
+      delay: 45
       # compare number of services spawned with
       until: (num_deployed_services.stdout | int) == (num_services.stdout | int)
 

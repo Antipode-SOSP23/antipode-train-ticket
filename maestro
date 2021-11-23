@@ -329,7 +329,7 @@ def deploy__gcp(args):
   from jinja2 import Environment
   import textwrap
 
-  # TODO: Load tag from .last.file when doing run or wkld gcp
+
   tag = f"{datetime.now().strftime('%Y%m%d%H%M%S')}"
   _set_last('deploy_tag', tag)
 
@@ -609,6 +609,8 @@ def clean__gcp(args):
   deploy_path = ROOT_PATH / 'deploy' / tag
   inventory_filepath = deploy_path / 'inventory.cfg'
   inventory = _load_inventory(inventory_filepath)
+  clients_inventory_filepath = deploy_path / 'clients_inventory.cfg'
+  clients_inventory = _load_inventory(clients_inventory_filepath)
 
   if _get_last('prometheus'):
     with local.cwd(ROOT_PATH / 'gcp'):
@@ -626,6 +628,8 @@ def clean__gcp(args):
   if args['strong']:
     print("[INFO] Removing GCP nodes ...")
     for _, host in inventory.items():
+      _gcp_vm_delete(host['gcp_zone'], host['gcp_name'])
+    for _, host in clients_inventory.items():
       _gcp_vm_delete(host['gcp_zone'], host['gcp_name'])
 
 
