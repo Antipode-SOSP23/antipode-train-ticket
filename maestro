@@ -790,7 +790,6 @@ def _force_gcp_docker():
     # run docker from host inside the container
     '-v', '/var/run/docker.sock:/var/run/docker.sock',
     '-v', '/usr/bin/docker:/usr/bin/docker',
-    '-v', '/usr/bin/docker-compose:/usr/bin/docker-compose',
     # volumes
     '-v', f"{ROOT_PATH}:/mnt/code",
     '-v', f"{ROOT_PATH / 'gcp' / '.ssh'}:/root/.ssh",

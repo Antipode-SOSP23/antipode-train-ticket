@@ -10,6 +10,7 @@ RUN set -ex ;\
         # gcp
         apt-transport-https \
         ca-certificates \
+        openssl \
         gnupg \
         curl \
         jq \
@@ -50,6 +51,7 @@ RUN set -ex ;\
 #-------------
 # install python packages
 #-------------
+ENV CLOUDSDK_PYTHON=/usr/bin/python3
 RUN set -ex ;\
     pip install --no-cache-dir --upgrade \
         google-api-python-client \
@@ -58,6 +60,8 @@ RUN set -ex ;\
         jinja2 \
         ansible \
         python-dotenv \
+        # error with mounting docker-compose bin as volume
+        docker-compose \
         ;
 
 # switch user to install zsh with a some plugins
