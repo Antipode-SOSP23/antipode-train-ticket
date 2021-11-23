@@ -10,7 +10,7 @@
         path: /code/deploy/
         state: directory
 
-    - name: Upload ansible inventory
+    - name: Upload deploy folder
       synchronize:
         src: "{{ deploy_path }}/"
         dest: /code/deploy
@@ -27,11 +27,3 @@
       file:
         path: /code/train-ticket
         state: directory
-
-    # - name: Upload application 'train-ticket' folder
-    #   synchronize:
-    #     src: {{ train_ticket_filepath }}
-    #     dest: "/code/train_ticket"
-    #     use_ssh_args: yes
-    #     recursive: true
-    #     mode: push

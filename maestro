@@ -368,7 +368,7 @@ def deploy__gcp(args):
   print(f"[SAVED] '{deploy_path / 'docker-compose.yml'}'")
 
   # Keep track of all created vms
-  vms = { 'swarm_manager': [], 'cluster': [] }
+  vms = { 'swarm_manager': [], 'cluster': [], 'clients': [] }
 
   # manager
   manager_config = {
@@ -431,6 +431,37 @@ def deploy__gcp(args):
     }
     vms['cluster'].append(_gcp_vm_create(node_info['zone'], node_config))
 
+  # client nodes
+  for node_name, node_info in config['clients'].items():
+    node_config = {
+      'name': node_name,
+      'machineType': f"zones/{node_info['zone']}/machineTypes/{node_info['machine_type']}",
+      'disks': [
+        {
+          'boot': True,
+          'autoDelete': True,
+          'initializeParams': {
+            'sourceImage': GCP_MACHINE_IMAGE_LINK,
+          }
+        }
+      ],
+      'hostname': node_info['hostname'],
+      # Specify a network interface with NAT to access the public internet.
+      'networkInterfaces': [
+        {
+          'network': 'global/networks/default',
+          'accessConfigs': [
+            {'type': 'ONE_TO_ONE_NAT', 'name': 'External NAT'}
+          ]
+        }
+      ],
+      # tags for firewall rules
+      "tags": {
+        "items": ['swarm', 'nodes'],
+      },
+    }
+    vms['clients'].append(_gcp_vm_create(node_info['zone'], node_config))
+
   # Build inventory for ansible playbooks
   inventory = {}
   for group_name, group_nodes in vms.items():
@@ -472,6 +503,22 @@ def deploy__gcp(args):
     # remove empty lines and dedent for easier read
     f.write(textwrap.dedent(template_render))
   print(f"[SAVED] '{inventory_filepath}'")
+
+  # build clients ansible inventory
+  template = """
+    [clients]
+    {% for node in clients %}{{ node['hostname'] }} ansible_host={{ node['external_ip'] }} gcp_zone={{ node['zone'] }} gcp_name={{ node['name'] }} gcp_host={{ node['internal_ip'] }} ansible_user=root ansible_ssh_private_key_file={{ private_key_path }}
+    {% endfor %}
+  """
+  template_render = Environment().from_string(template).render({
+    'clients': inventory['clients'],
+    'private_key_path': str(ROOT_PATH / 'gcp' / '.ssh' / 'google_compute_engine'),
+  })
+  client_inventory_filepath = deploy_path / 'clients_inventory.cfg'
+  with open(client_inventory_filepath, 'w') as f:
+    # remove empty lines and dedent for easier read
+    f.write(textwrap.dedent(template_render))
+  print(f"[SAVED] '{client_inventory_filepath}'")
 
   # sleep to give extra time for nodes to be ready to accept requests
   time.sleep(30)
