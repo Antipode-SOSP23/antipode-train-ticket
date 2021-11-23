@@ -331,7 +331,7 @@ def deploy__gcp(args):
 
   # TODO: Load tag from .last.file when doing run or wkld gcp
   tag = f"{datetime.now().strftime('%Y%m%d%H%M%S')}"
-  _put_last('deploy_tag', tag)
+  _set_last('deploy_tag', tag)
 
   # create deploy folder
   deploy_path = ROOT_PATH / 'deploy' / tag
@@ -340,7 +340,7 @@ def deploy__gcp(args):
   # load the config and the local compose
   compose = _load_yaml(DOCKER_COMPOSE_FILE)
   config = _load_yaml(args['config'])
-  _put_last('deploy_config', args['config'])
+  _set_last('deploy_config', args['config'])
 
   # Set external network driver
   compose['networks'][DOCKER_COMPOSE_NETWORK]['external'] = { 'name': DOCKER_COMPOSE_NETWORK }
@@ -565,14 +565,14 @@ def run__gcp(args):
 
   # run playbooks
   if args['prometheus']:
-    _put_last('prometheus', True)
+    _set_last('prometheus', True)
     with local.cwd(ROOT_PATH / 'gcp'):
       ansible_playbook['prometheus-deploy.yml', '-i', inventory_filepath] & FG
       ansible_playbook['prometheus-run.yml', '-i', inventory_filepath] & FG
       _wait_url_up(f"http://{inventory[GCP_SWARM_MANAGER_NAME]['external_ip']}:9090")
 
   if args['portainer']:
-    _put_last('portainer', True)
+    _set_last('portainer', True)
     with local.cwd(ROOT_PATH / 'gcp'):
       ansible_playbook['portainer-run.yml', '-i', inventory_filepath] & FG
       _wait_url_up(f"http://{inventory[GCP_SWARM_MANAGER_NAME]['external_ip']}:9000")
@@ -613,12 +613,12 @@ def clean__gcp(args):
   if _get_last('prometheus'):
     with local.cwd(ROOT_PATH / 'gcp'):
       ansible_playbook['prometheus-clean.yml', '-i', inventory_filepath] & FG
-      _put_last('prometheus', False) # already cleaned so we remove flag
+      _set_last('prometheus', False) # already cleaned so we remove flag
 
   if _get_last('portainer'):
     with local.cwd(ROOT_PATH / 'gcp'):
       ansible_playbook['portainer-clean.yml', '-i', inventory_filepath] & FG
-      _put_last('portainer', False) # already cleaned so we remove flag
+      _set_last('portainer', False) # already cleaned so we remove flag
 
   with local.cwd(ROOT_PATH / 'gcp'):
     ansible_playbook['swarm-clean.yml', '-i', inventory_filepath] & FG
@@ -762,7 +762,7 @@ def _dump_yaml(path, d):
   with open(path, 'w+') as f:
     yaml.safe_dump(d, f, default_flow_style=False)
 
-def _put_last(k,v):
+def _set_last(k,v):
   import yaml
   doc = {}
   # if file exists parse yaml otherwise create empty dict to write to
