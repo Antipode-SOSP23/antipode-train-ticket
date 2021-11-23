@@ -200,6 +200,7 @@ def build__gcp(args):
     docker['build', '-t', LOCUST_DOCKER_IMAGE_NAME, '.'] & FG
     gcp_image_name = f"{GCP_DOCKER_IMAGE_NAMESPACE}/{LOCUST_DOCKER_IMAGE_NAME}"
     docker['tag', LOCUST_DOCKER_IMAGE_NAME, gcp_image_name] & FG
+    docker['push', gcp_image_name] & FG
     docker['rmi', gcp_image_name] & FG
 
   # Create base VM
@@ -566,7 +567,7 @@ def run__gcp(args):
       ansible_playbook['portainer-run.yml', '-i', inventory_filepath] & FG
       _wait_url_up(f"http://{inventory[GCP_SWARM_MANAGER_NAME]['external_ip']}:9000")
 
-  # start tt services
+  # start train ticket services
   with local.cwd(ROOT_PATH / 'gcp'):
     ansible_playbook['tt-run.yml', '-i', inventory_filepath,
       '-e', f"dashboard_url={_service_public_endpoint('gcp', 'ts-ui-dashboard')}",
@@ -895,7 +896,7 @@ DOCKER_COMPOSE_NETWORK = 'my-network'
 SERVICES = _services()
 SERVICES_TO_PORT = _services_to_port()
 LAST_INFO_FILE = ROOT_PATH / '.last.yml'
-LOCUST_DOCKER_IMAGE_NAME = 'tt-locust:antipode'
+LOCUST_DOCKER_IMAGE_NAME = 'locust-tt:antipode'
 SEED_TO_DURATION_FACTOR = 50 # in 1 second it does less than this
 DEPLOY_TYPES = [ 'local', 'gcp' ]
 GCP_PROJECT_ID = 'pluribus'
