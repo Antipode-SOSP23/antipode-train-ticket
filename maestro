@@ -195,6 +195,13 @@ def build__gcp(args):
       docker['push', gcp_image_name] & FG
       docker['rmi', gcp_image_name] & FG
 
+  # build and tag locust image
+  with local.cwd(ROOT_PATH / 'locust'):
+    docker['build', '-t', LOCUST_DOCKER_IMAGE_NAME, '.'] & FG
+    gcp_image_name = f"{GCP_DOCKER_IMAGE_NAMESPACE}/{LOCUST_DOCKER_IMAGE_NAME}"
+    docker['tag', LOCUST_DOCKER_IMAGE_NAME, gcp_image_name] & FG
+    docker['rmi', gcp_image_name] & FG
+
   # Create base VM
   compute = googleapiclient.discovery.build('compute', 'v1')
   image_response = compute.images().getFromFamily(project='debian-cloud', family='debian-10').execute()
@@ -440,7 +447,7 @@ def deploy__gcp(args):
         'internal_ip': internal_ip,
       })
 
-  # now build the inventory
+  # build app ansible inventory
   # if you want to get a new google_compute_engine key:
   #   1) go to https://console.cloud.google.com/compute/instances
   #   2) choose one instance, click on SSH triangle for more options
@@ -455,7 +462,7 @@ def deploy__gcp(args):
     [cluster]
     {% for node in deploy_nodes %}{{ node['hostname'] }} ansible_host={{ node['external_ip'] }} gcp_zone={{ node['zone'] }} gcp_name={{ node['name'] }} gcp_host={{ node['internal_ip'] }} ansible_user=root ansible_ssh_private_key_file={{ private_key_path }}{% endfor %}
   """
-  inventory = Environment().from_string(template).render({
+  template_render = Environment().from_string(template).render({
     'swarm_manager': inventory['swarm_manager'][0], # only one swarm manager
     'deploy_nodes': inventory['cluster'],
     'private_key_path': str(ROOT_PATH / 'gcp' / '.ssh' / 'google_compute_engine'),
@@ -463,7 +470,7 @@ def deploy__gcp(args):
   inventory_filepath = deploy_path / 'inventory.cfg'
   with open(inventory_filepath, 'w') as f:
     # remove empty lines and dedent for easier read
-    f.write(textwrap.dedent(inventory))
+    f.write(textwrap.dedent(template_render))
   print(f"[SAVED] '{inventory_filepath}'")
 
   # sleep to give extra time for nodes to be ready to accept requests
@@ -850,6 +857,7 @@ DOCKER_COMPOSE_NETWORK = 'my-network'
 SERVICES = _services()
 SERVICES_TO_PORT = _services_to_port()
 LAST_INFO_FILE = ROOT_PATH / '.last.yml'
+LOCUST_DOCKER_IMAGE_NAME = 'tt-locust:antipode'
 SEED_TO_DURATION_FACTOR = 50 # in 1 second it does less than this
 DEPLOY_TYPES = [ 'local', 'gcp' ]
 GCP_PROJECT_ID = 'pluribus'
