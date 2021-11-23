@@ -525,7 +525,9 @@ def run__gcp(args):
 
   # start tt services
   with local.cwd(ROOT_PATH / 'gcp'):
-    ansible_playbook['tt-run.yml', '-i', inventory_filepath] & FG
+    ansible_playbook['tt-run.yml', '-i', inventory_filepath,
+      '-e', f"dashboard_url={_service_public_endpoint('gcp', 'ts-ui-dashboard')}",
+    ] & FG
 
 
 #--------------

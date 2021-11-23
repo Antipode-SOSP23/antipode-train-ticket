@@ -25,14 +25,12 @@
       # compare number of services spawned with
       until: (num_deployed_services.stdout | int) == (num_services.stdout | int)
 
-# TODO: Curl the key services for the /HELLO API endpoint
-# - hosts: compose-post.pluribus
-#   gather_facts: no
-#   become: yes
-#   any_errors_fatal: true
-
-#   tasks:
-#     - name: Wait for compose-post-service to be ready for posts by creating dockerize.sync file
-#       shell: >
-#           docker exec $( docker ps -a --filter name='compose-post-service' --filter status=running --format {% raw %}'{{ .ID }}'{% endraw %} ) dockerize -wait file:///tmp/dockerize.sync -wait-retry-interval 10s -timeout 300s
-#       ignore_errors: True
+    - name: Pause until dashboard is reachable
+      uri:
+        url: "{{ dashboard_url }}"
+        follow_redirects: none
+        method: GET
+      register: _result
+      until: _result.status == 200
+      retries: 30
+      delay: 10
