@@ -1,0 +1,11 @@
+ansible
+Jinja2
+locust
+matplotlib
+numpy
+pandas
+plumbum
+PyYAML
+requests
+seaborn
+urllib3
