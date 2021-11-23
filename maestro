@@ -559,10 +559,12 @@ def clean__gcp(args):
   if _get_last('prometheus'):
     with local.cwd(ROOT_PATH / 'gcp'):
       ansible_playbook['prometheus-clean.yml', '-i', inventory_filepath] & FG
+      _put_last('prometheus', False) # already cleaned so we remove flag
 
   if _get_last('portainer'):
     with local.cwd(ROOT_PATH / 'gcp'):
       ansible_playbook['portainer-clean.yml', '-i', inventory_filepath] & FG
+      _put_last('portainer', False) # already cleaned so we remove flag
 
   with local.cwd(ROOT_PATH / 'gcp'):
     ansible_playbook['swarm-clean.yml', '-i', inventory_filepath] & FG
