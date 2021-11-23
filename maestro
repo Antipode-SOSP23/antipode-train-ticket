@@ -622,11 +622,14 @@ def clean__gcp(args):
 # WORKLOAD
 #--------------
 def wkld(args):
+  getattr(sys.modules[__name__], f"wkld__{args.pop('deploy_type')}")(args)
+  print("[INFO] Workdload done!")
+
+def wkld__local(args):
   from datetime import datetime
   from jinja2 import Environment
   import textwrap
-  from plumbum import FG
-  from plumbum import local
+  from plumbum import local, FG
   from plumbum.cmd import docker_compose
   import shutil
 
@@ -638,8 +641,8 @@ def wkld(args):
   os.makedirs(deploy_path, exist_ok=True)
 
   # copy locust files to deploy folder
-  shutil.copy(ROOT_PATH / 'locust' / f"locustfile.py", deploy_path)
-  shutil.copy(ROOT_PATH / 'locust' / f"Dockerfile", deploy_path)
+  shutil.copy(ROOT_PATH / 'locust' / 'locustfile.py', deploy_path)
+  shutil.copy(ROOT_PATH / 'locust' / 'Dockerfile', deploy_path / 'Dockerfile-locust')
 
   # dynamically build docker-compose for clients
   template = """
@@ -669,23 +672,23 @@ def wkld(args):
         working_dir: /mnt/locust
         command: -f locustfile.py --worker --master-host master --headless --reset-stats
         environment:
+          WORKER_ID: {{ worker_id }}
           AUTH_SERVICE_URL: {{ auth_service_url }}
           ORDER_SERVICE_URL: {{ order_service_url }}
           CANCEL_SERVICE_URL: {{ cancel_service_url }}
           INSIDE_PAYMENT_SERVICE_URL: {{ inside_payment_service_url }}
           USERNAME: {{ username }}
           PASSWORD: {{ password }}
-          WORKER_ID: {{ worker_id }}
           SEED_SIZE: {{ seed_size }}
         volumes:
           - ./:/mnt/locust
       {% endfor %}
   """
   inventory = Environment().from_string(template).render({
-    'auth_service_url': _service_public_endpoint(args['deploy_type'], 'ts-auth-service'),
-    'order_service_url': _service_public_endpoint(args['deploy_type'], 'ts-order-service'),
-    'cancel_service_url': _service_public_endpoint(args['deploy_type'], 'ts-cancel-service'),
-    'inside_payment_service_url': _service_public_endpoint(args['deploy_type'], 'ts-inside-payment-service'),
+    'auth_service_url': _service_public_endpoint('local', 'ts-auth-service'),
+    'order_service_url': _service_public_endpoint('local', 'ts-order-service'),
+    'cancel_service_url': _service_public_endpoint('local', 'ts-cancel-service'),
+    'inside_payment_service_url': _service_public_endpoint('local', 'ts-inside-payment-service'),
     'username': 'fdse_microservice',
     'password': '111111',
     'num_workers': args['clients'],
@@ -694,7 +697,7 @@ def wkld(args):
     'report_prefix': tag,
     'seed_size': SEED_TO_DURATION_FACTOR * args['duration'],
   })
-  docker_compose_filepath = deploy_path / 'docker-compose.yml'
+  docker_compose_filepath = deploy_path / 'docker-compose-locust.yml'
   with open(docker_compose_filepath, 'w') as f:
     # remove empty lines and dedent for easier read
     f.write(textwrap.dedent(inventory))
@@ -702,14 +705,14 @@ def wkld(args):
 
   # run locust and remove containers
   with local.cwd(deploy_path):
-    docker_compose['up'] & FG
+    docker_compose['up', '-f', f"{docker_compose_filepath}"] & FG
     # save log from master in
-    (docker_compose['logs', '--no-color', '--no-log-prefix', 'master'] > f"master.out" )& FG
+    (docker_compose['logs', '-f', f"{docker_compose_filepath}", '--no-color', '--no-log-prefix', 'master'] > f"master.out" )& FG
     # save log from workers
     for worker_id in range(args['clients']):
-      (docker_compose['logs', '--no-color', '--no-log-prefix', f"worker_{worker_id}"] > f"worker_{worker_id}.out" )& FG
+      (docker_compose['logs', '-f', f"{docker_compose_filepath}", '--no-color', '--no-log-prefix', f"worker_{worker_id}"] > f"worker_{worker_id}.out" )& FG
     # remove and clean containers
-    docker_compose['down', '--rmi', 'local', '-v'] & FG
+    docker_compose['down', '-f', f"{docker_compose_filepath}", '--rmi', 'local', '-v'] & FG
 
   # create gather folder
   gather_path = ROOT_PATH / 'gather' / tag
