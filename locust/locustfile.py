@@ -8,7 +8,6 @@ from faker import Faker
 from faker.providers import ssn, phone_number
 from datetime import datetime, date
 import time
-from tqdm import trange
 
 
 WORKER_ID = os.environ['WORKER_ID']
@@ -101,7 +100,11 @@ if WORKER_ID != 'MASTER':
   # auth user
   user_id, auth_token = auth_user()
   # seed orders
-  order_ids = list(filter(None, [ create_order_and_pay(user_id, auth_token) for _ in trange(SEED_SIZE) ]))
+  order_ids = []
+  for i in range(SEED_SIZE):
+    order_ids.append(create_order_and_pay(user_id, auth_token))
+    if (i+1) % int(SEED_SIZE * 0.01) == 0:
+      print(f"\t[{i+1}/{SEED_SIZE}]", flush=True)
 
 
 class TrainTicket(HttpUser):
