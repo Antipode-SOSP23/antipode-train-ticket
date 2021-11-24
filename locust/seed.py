@@ -7,7 +7,6 @@ from datetime import datetime, date
 import yaml
 from pprint import pprint as pp
 import multiprocessing
-from tqdm import tqdm
 import time
 
 
