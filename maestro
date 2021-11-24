@@ -696,7 +696,7 @@ def wkld__local(args):
       master:
         image: {{ locust_docker_image_name }}
         working_dir: /mnt/locust
-        command: -f locustfile.py --master -H http://master:8089 --expect-workers {{ num_workers }} --headless --reset-stats --only-summary --logfile {{ report_prefix }}.err --html {{ report_prefix }}.html --csv {{ report_prefix }} --run-time {{ run_time }} -u {{ users }}
+        command: -f locustfile.py --master --master-bind-host=0.0.0.0 --master-bind-port=8089 --expect-workers {{ num_workers }} --headless --reset-stats --only-summary --logfile {{ report_prefix }}.err --html {{ report_prefix }}.html --csv {{ report_prefix }} --run-time {{ run_time }} -u {{ users }}
         environment:
           AUTH_SERVICE_URL: {{ auth_service_url }}
           ORDER_SERVICE_URL: {{ order_service_url }}
@@ -707,7 +707,7 @@ def wkld__local(args):
           WORKER_ID: MASTER
           SEED_SIZE: {{ seed_size }}
         ports:
-          - "8089:8089"
+          - 8089:8089
         volumes:
           - ./:/mnt/locust
 
@@ -715,7 +715,7 @@ def wkld__local(args):
       worker{{ worker_id }}:
         image: {{ locust_docker_image_name }}
         working_dir: /mnt/locust
-        command: -f locustfile.py --worker --master-host master --headless --reset-stats
+        command: -f locustfile.py --worker --master-host master --master-port=8089 --headless --reset-stats
         environment:
           WORKER_ID: worker{{ worker_id }}
           AUTH_SERVICE_URL: {{ auth_service_url }}
@@ -752,14 +752,14 @@ def wkld__local(args):
 
   # run locust and remove containers
   with local.cwd(deploy_path):
-    docker_compose['up', '-f', f"{docker_compose_filepath}"] & FG
+    docker_compose['-f', f"{docker_compose_filepath}", 'up'] & FG
     # save log from master in
-    (docker_compose['logs', '-f', f"{docker_compose_filepath}", '--no-color', '--no-log-prefix', 'master'] > f"master.out" )& FG
+    (docker_compose['-f', f"{docker_compose_filepath}", 'logs', '--no-color', '--no-log-prefix', 'master'] > f"master.out" )& FG
     # save log from workers
     for worker_id in range(args['clients']):
-      (docker_compose['logs', '-f', f"{docker_compose_filepath}", '--no-color', '--no-log-prefix', f"worker_{worker_id}"] > f"worker_{worker_id}.out" )& FG
+      (docker_compose['-f', f"{docker_compose_filepath}", 'logs', '--no-color', '--no-log-prefix', f"worker_{worker_id}"] > f"worker_{worker_id}.out" )& FG
     # remove and clean containers
-    docker_compose['down', '-f', f"{docker_compose_filepath}", '--rmi', 'local', '-v'] & FG
+    docker_compose['-f', f"{docker_compose_filepath}", 'down', '--rmi', 'local', '-v'] & FG
 
   # create gather folder
   gather_path = ROOT_PATH / 'gather' / tag
