@@ -566,7 +566,12 @@ def run__local(args):
 
   with local.cwd(APP_PATH):
     with local.env(COMPOSE_HTTP_TIMEOUT=180):
-      docker_compose['-f', DOCKER_COMPOSE_FILE, 'up'] & FG
+      if args['detached']:
+        docker_compose['-f', DOCKER_COMPOSE_FILE, 'up', '-d'] & FG
+        # wait for dashboard to be up
+        _wait_url_up(_service_public_endpoint('local', 'ts-ui-dashboard'))
+      else:
+        docker_compose['-f', DOCKER_COMPOSE_FILE, 'up'] & FG
 
 def run__gcp(args):
   _force_gcp_docker()
@@ -968,6 +973,7 @@ if __name__ == '__main__':
   run_parser = subparsers.add_parser('run', help='Run application')
   run_parser.add_argument('-prometheus', action='store_true', help="Run with prometheus enabled")
   run_parser.add_argument('-portainer', action='store_true', help="Run with portainer enabled")
+  run_parser.add_argument('-detached', action='store_true', help="Run in detach mode")
 
   # clean application
   clean_parser = subparsers.add_parser('clean', help='Clean application')
