@@ -563,6 +563,15 @@ def run(args):
 def run__local(args):
   from plumbum import local, FG
   from plumbum.cmd import docker_compose
+  from datetime import datetime
+
+
+  tag = f"{datetime.now().strftime('%Y%m%d%H%M%S')}"
+  _set_last('deploy_tag', tag)
+
+  # create deploy folder
+  deploy_path = ROOT_PATH / 'deploy' / tag
+  os.makedirs(deploy_path, exist_ok=True)
 
   with local.cwd(APP_PATH):
     with local.env(COMPOSE_HTTP_TIMEOUT=180):
@@ -665,11 +674,8 @@ def wkld__local(args):
   import shutil
 
   # tag for this deployment
-  tag = f"{datetime.now().strftime('%Y%m%d%H%M%S')}"
-
-  # create deploy folder
+  tag = _get_last('deploy_tag')
   deploy_path = ROOT_PATH / 'deploy' / tag
-  os.makedirs(deploy_path, exist_ok=True)
 
   # copy locust files to deploy folder
   shutil.copy(ROOT_PATH / 'locust' / 'locustfile.py', deploy_path)
