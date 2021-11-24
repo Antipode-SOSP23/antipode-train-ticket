@@ -61,7 +61,7 @@ def create_order_and_pay(args):
       "price": str(100.0),
       "status": 0, # NOT PAID
     }
-    r = requests.post(create_order_url, headers=headers, json=order_params)
+    r = requests.post(create_order_url, headers=headers, json=order_params, timeout=5)
     if r.status_code != 200:
       print("[ERROR] Failed to create order")
       return None
@@ -69,13 +69,13 @@ def create_order_and_pay(args):
     order_id = r.json()['data']['id']
 
     # Pay order
-    params = {
+    pay_params = {
       "userId": user_id,
       "orderId": order_id,
       "tripId": order_params['trainNumber'],
       "price": order_params['price'],
     }
-    r = requests.post(pay_order_url, headers=headers, json=params)
+    r = requests.post(pay_order_url, headers=headers, json=pay_params, timeout=5)
     if r.status_code != 200:
       print("[ERROR] Failed to pay order")
       return None
