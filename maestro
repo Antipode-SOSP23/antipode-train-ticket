@@ -696,7 +696,7 @@ def wkld__local(args):
       master:
         image: {{ locust_docker_image_name }}
         working_dir: /mnt/locust
-        command: -f locustfile.py --master --master-bind-host=0.0.0.0 --master-bind-port=8089 --expect-workers {{ num_workers }} --headless --reset-stats --only-summary --logfile {{ report_prefix }}.err --html {{ report_prefix }}.html --csv {{ report_prefix }} --run-time {{ run_time }} -u {{ users }}
+        command: -f locustfile.py --master --master-bind-host=0.0.0.0 --master-bind-port=8089 --host http://master:8089 --expect-workers {{ num_workers }} --headless --reset-stats --only-summary --logfile {{ report_prefix }}.err --html {{ report_prefix }}.html --csv {{ report_prefix }} --run-time {{ run_time }} -u {{ users }}
         environment:
           AUTH_SERVICE_URL: {{ auth_service_url }}
           ORDER_SERVICE_URL: {{ order_service_url }}
