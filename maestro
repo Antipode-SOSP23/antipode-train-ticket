@@ -624,6 +624,14 @@ def clean__local(args):
   from plumbum import local, FG
   from plumbum.cmd import docker, docker_compose
 
+  tag = _get_last('deploy_tag')
+  deploy_path = ROOT_PATH / 'deploy' / tag
+
+  # run locust and remove containers
+  with local.cwd(deploy_path):
+    # remove and clean containers
+    docker_compose['-f', 'docker-compose-locust.yml', 'down', '--rmi', 'local', '-v'] & FG
+
   with local.cwd(APP_PATH):
     docker_compose['-f', DOCKER_COMPOSE_FILE, 'down'] & FG
     # cleaning system because train consumes a lot of memory/disk
