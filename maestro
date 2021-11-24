@@ -98,9 +98,6 @@ def info(args):
   if args['logs']:
     getattr(sys.modules[__name__], f"info__{args['deploy_type']}")(args)
 
-  if args['logs_locust']:
-    getattr(sys.modules[__name__], f"info__{args['deploy_type']}")(args)
-
 def info__local(args):
   if args['ps']:
     from plumbum import local, FG
@@ -113,16 +110,18 @@ def info__local(args):
     from plumbum import local, FG
     from plumbum.cmd import docker_compose
 
-    with local.cwd(APP_PATH):
-      docker_compose['-f', DOCKER_COMPOSE_FILE, 'logs', '--tail=1000', args['logs']] & FG
+    # service from train ticket
+    if args['logs'] in SERVICES:
+      compose_args = ['-f', APP_PATH / DOCKER_COMPOSE_FILE, 'logs']
+      if args['follow']: compose_args += ['--follow']
+      compose_args += ['--tail=1000', args['logs']]
+    else:
+      tag = _get_last('deploy_tag')
+      compose_args = ['-f', ROOT_PATH / 'deploy' / tag / 'docker-compose-locust.yml', 'logs']
+      if args['follow']: compose_args += ['--follow']
+      compose_args += ['--tail=1000', args['logs']]
 
-  if args['logs_locust']:
-    from plumbum import local, FG
-    from plumbum.cmd import docker_compose
-
-    tag = _get_last('deploy_tag')
-    with local.cwd(ROOT_PATH / 'deploy' / tag):
-      docker_compose['-f', 'docker-compose-locust.yml', 'logs', '--tail=1000', args['logs_locust']] & FG
+    docker_compose[compose_args] & FG
 
 def info__gcp(args):
   _force_gcp_docker()
@@ -146,23 +145,23 @@ def info__gcp(args):
     from plumbum import FG
     from plumbum.cmd import gcloud
 
-    service_details = inventory[config['services'][args['logs']]]
+    follow_arg = '--follow' if args['follow'] else ''
 
-    gcloud['compute', 'ssh', f"root@{GCP_SWARM_MANAGER_NAME}",
-      '--zone', service_details['gcp_zone'],
-      '--command', f"docker service logs --tail=1000 {GCP_SWARM_STACK_NAME}_{args['logs']}"
-    ] & FG
+    # service from train ticket
+    if args['logs'] in SERVICES:
+      service_details = inventory[config['services'][args['logs']]]
 
-  if args['logs_locust']:
-    from plumbum import FG
-    from plumbum.cmd import gcloud
+      gcloud['compute', 'ssh', f"root@{GCP_SWARM_MANAGER_NAME}",
+        '--zone', service_details['gcp_zone'],
+        '--command', f"docker service logs --tail=1000 {follow_arg} {GCP_SWARM_STACK_NAME}_{args['logs']}"
+      ] & FG
+    else:
+      service_details = inventory[GCP_SWARM_MANAGER_NAME]
 
-    service_details = inventory[GCP_SWARM_MANAGER_NAME]
-
-    gcloud['compute', 'ssh', f"root@{GCP_SWARM_MANAGER_NAME}",
-      '--zone', service_details['gcp_zone'],
-      '--command', f"docker service logs --tail=1000 locust_{args['logs_locust']}"
-    ] & FG
+      gcloud['compute', 'ssh', f"root@{GCP_SWARM_MANAGER_NAME}",
+        '--zone', service_details['gcp_zone'],
+        '--command', f"docker service logs --tail=1000 {follow_arg} locust_{args['logs']}"
+      ] & FG
 
 
 #--------------
@@ -1030,8 +1029,8 @@ if __name__ == '__main__':
   info_parser = subparsers.add_parser('info', help='Application info')
   info_parser.add_argument('-links', action='store_true', help="Application links")
   info_parser.add_argument('-ps', action='store_true', help="Application processes")
-  info_parser.add_argument('-logs', choices=SERVICES, help="Application processes")
-  info_parser.add_argument('-logs-locust', help="Application processes")
+  info_parser.add_argument('-logs', help="Application processes")
+  info_parser.add_argument('-follow', action='store_true', help="Follow output")
 
   # run application
   run_parser = subparsers.add_parser('run', help='Run application')
