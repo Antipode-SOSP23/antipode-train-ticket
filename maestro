@@ -193,6 +193,10 @@ def build__local(args):
     time.sleep(1) # wait in between commands due to jar generation delay??
     docker_compose['build'] & FG
 
+  # build locust image
+  with local.cwd(ROOT_PATH / 'locust'):
+    docker['build', '-t', LOCUST_DOCKER_IMAGE_NAME, '.'] & FG
+
 def build__gcp(args):
   # build local images first
   if not _is_inside_docker():
@@ -219,7 +223,6 @@ def build__gcp(args):
 
   # build and tag locust image
   with local.cwd(ROOT_PATH / 'locust'):
-    docker['build', '-t', LOCUST_DOCKER_IMAGE_NAME, '.'] & FG
     gcp_image_name = f"{GCP_DOCKER_IMAGE_NAMESPACE}/{LOCUST_DOCKER_IMAGE_NAME}"
     docker['tag', LOCUST_DOCKER_IMAGE_NAME, gcp_image_name] & FG
     docker['push', gcp_image_name] & FG
