@@ -115,7 +115,7 @@ def info__local(args):
       compose_args = ['-f', APP_PATH / DOCKER_COMPOSE_FILE, 'logs']
       if args['follow']: compose_args += ['--follow']
       compose_args += ['--tail=1000', args['logs']]
-    else:
+    elif args['logs'].startswith('worker') or args['logs'] == 'master':
       tag = _get_last('deploy_tag')
       compose_args = ['-f', ROOT_PATH / 'deploy' / tag / 'docker-compose-locust.yml', 'logs']
       if args['follow']: compose_args += ['--follow']
@@ -155,7 +155,14 @@ def info__gcp(args):
         '--zone', service_details['gcp_zone'],
         '--command', f"docker service logs --tail=1000 {follow_arg} {GCP_SWARM_STACK_NAME}_{args['logs']}"
       ] & FG
-    else:
+    elif args['logs'].startswith('seed'):
+      service_details = inventory[GCP_SWARM_MANAGER_NAME]
+
+      gcloud['compute', 'ssh', f"root@{GCP_SWARM_MANAGER_NAME}",
+        '--zone', service_details['gcp_zone'],
+        '--command', f"docker service logs --tail=1000 {follow_arg} seed_{args['logs']}"
+      ] & FG
+    elif args['logs'].startswith('worker') or args['logs'] == 'master':
       service_details = inventory[GCP_SWARM_MANAGER_NAME]
 
       gcloud['compute', 'ssh', f"root@{GCP_SWARM_MANAGER_NAME}",
