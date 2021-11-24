@@ -193,7 +193,7 @@ def build__local(args):
     docker_compose['build'] & FG
 
   # build locust image
-  with local.cwd(ROOT_PATH / 'locust'):
+  with local.cwd(ROOT_PATH / 'wkld'):
     docker['build', '-t', LOCUST_DOCKER_IMAGE_NAME, '.'] & FG
 
 def build__gcp(args):
@@ -221,7 +221,7 @@ def build__gcp(args):
       docker['rmi', gcp_image_name] & FG
 
   # build and tag locust image
-  with local.cwd(ROOT_PATH / 'locust'):
+  with local.cwd(ROOT_PATH / 'wkld'):
     gcp_image_name = f"{GCP_DOCKER_IMAGE_NAMESPACE}/{LOCUST_DOCKER_IMAGE_NAME}"
     docker['tag', LOCUST_DOCKER_IMAGE_NAME, gcp_image_name] & FG
     docker['push', gcp_image_name] & FG
@@ -689,7 +689,7 @@ def wkld__local(args):
 
   if not args['noseed']:
     # copy locust files to deploy folder
-    shutil.copy(ROOT_PATH / 'locust' / 'seed.py', deploy_path)
+    shutil.copy(ROOT_PATH / 'wkld' / 'seed.py', deploy_path)
 
     # dynamically build docker-compose for client seeds
     template = """
