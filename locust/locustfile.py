@@ -67,8 +67,12 @@ def create_order_and_pay(user_id, auth_token):
     "price": str(100.0),
     "status": 0, # NOT PAID
   }
-  r = requests.post(create_order_url, headers=headers, json=order_params)
-  if r.status_code != 200:
+  try:
+    r = requests.post(create_order_url, headers=headers, json=order_params)
+    if r.status_code != 200:
+      print("[ERROR] Failed to create order")
+      return None
+  except requests.exceptions.ConnectionError as e:
     print("[ERROR] Failed to create order")
     return None
 
@@ -81,8 +85,12 @@ def create_order_and_pay(user_id, auth_token):
     "tripId": order_params['trainNumber'],
     "price": order_params['price'],
   }
-  r = requests.post(pay_order_url, headers=headers, json=params)
-  if r.status_code != 200:
+  try:
+    r = requests.post(pay_order_url, headers=headers, json=params)
+    if r.status_code != 200:
+      print("[ERROR] Failed to pay order")
+      return None
+  except requests.exceptions.ConnectionError as e:
     print("[ERROR] Failed to pay order")
     return None
 
