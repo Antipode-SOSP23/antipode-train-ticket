@@ -98,6 +98,9 @@ def info(args):
   if args['logs']:
     getattr(sys.modules[__name__], f"info__{args['deploy_type']}")(args)
 
+  if args['logs_locust']:
+    getattr(sys.modules[__name__], f"info__{args['deploy_type']}")(args)
+
 def info__local(args):
   if args['ps']:
     from plumbum import local, FG
@@ -111,7 +114,15 @@ def info__local(args):
     from plumbum.cmd import docker_compose
 
     with local.cwd(APP_PATH):
-      docker_compose['-f', DOCKER_COMPOSE_FILE, 'logs', args['logs']] & FG
+      docker_compose['-f', DOCKER_COMPOSE_FILE, 'logs', '--tail=1000', args['logs']] & FG
+
+  if args['logs_locust']:
+    from plumbum import local, FG
+    from plumbum.cmd import docker_compose
+
+    tag = _get_last('deploy_tag')
+    with local.cwd(ROOT_PATH / 'deploy' / tag):
+      docker_compose['-f', 'docker-compose-locust.yml', 'logs', '--tail=1000', args['logs_locust']] & FG
 
 def info__gcp(args):
   _force_gcp_docker()
@@ -139,7 +150,18 @@ def info__gcp(args):
 
     gcloud['compute', 'ssh', f"root@{GCP_SWARM_MANAGER_NAME}",
       '--zone', service_details['gcp_zone'],
-      '--command', f"docker service logs {GCP_SWARM_STACK_NAME}_{args['logs']}"
+      '--command', f"docker service logs --tail=1000 {GCP_SWARM_STACK_NAME}_{args['logs']}"
+    ] & FG
+
+  if args['logs_locust']:
+    from plumbum import FG
+    from plumbum.cmd import gcloud
+
+    service_details = inventory[GCP_SWARM_MANAGER_NAME]
+
+    gcloud['compute', 'ssh', f"root@{GCP_SWARM_MANAGER_NAME}",
+      '--zone', service_details['gcp_zone'],
+      '--command', f"docker service logs --tail=1000 locust_{args['logs_locust']}"
     ] & FG
 
 
@@ -937,6 +959,7 @@ if __name__ == '__main__':
   info_parser.add_argument('-links', action='store_true', help="Application links")
   info_parser.add_argument('-ps', action='store_true', help="Application processes")
   info_parser.add_argument('-logs', choices=SERVICES, help="Application processes")
+  info_parser.add_argument('-logs-locust', help="Application processes")
 
   # run application
   run_parser = subparsers.add_parser('run', help='Run application')
