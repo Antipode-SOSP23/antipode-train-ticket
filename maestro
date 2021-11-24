@@ -679,14 +679,14 @@ def wkld__local(args):
 
   # copy locust files to deploy folder
   shutil.copy(ROOT_PATH / 'locust' / 'locustfile.py', deploy_path)
-  shutil.copy(ROOT_PATH / 'locust' / 'Dockerfile', deploy_path / 'Dockerfile-locust')
 
   # dynamically build docker-compose for clients
   template = """
     version: '3'
+
     services:
       master:
-        build: .
+        image: {{ locust_docker_image_name }}
         working_dir: /mnt/locust
         command: -f locustfile.py --master -H http://master:8089 --expect-workers {{ num_workers }} --headless --reset-stats --only-summary --logfile {{ report_prefix }}.err --html {{ report_prefix }}.html --csv {{ report_prefix }} --run-time {{ run_time }} -u {{ users }}
         environment:
@@ -704,12 +704,12 @@ def wkld__local(args):
           - ./:/mnt/locust
 
       {% for worker_id in range(num_workers) %}
-      worker_{{ worker_id }}:
-        build: .
+      worker{{ worker_id }}:
+        image: {{ locust_docker_image_name }}
         working_dir: /mnt/locust
         command: -f locustfile.py --worker --master-host master --headless --reset-stats
         environment:
-          WORKER_ID: {{ worker_id }}
+          WORKER_ID: worker{{ worker_id }}
           AUTH_SERVICE_URL: {{ auth_service_url }}
           ORDER_SERVICE_URL: {{ order_service_url }}
           CANCEL_SERVICE_URL: {{ cancel_service_url }}
@@ -722,6 +722,8 @@ def wkld__local(args):
       {% endfor %}
   """
   inventory = Environment().from_string(template).render({
+    'locust_docker_image_name': LOCUST_DOCKER_IMAGE_NAME,
+    #
     'auth_service_url': _service_public_endpoint('local', 'ts-auth-service'),
     'order_service_url': _service_public_endpoint('local', 'ts-order-service'),
     'cancel_service_url': _service_public_endpoint('local', 'ts-cancel-service'),
