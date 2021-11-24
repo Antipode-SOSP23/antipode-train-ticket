@@ -631,6 +631,7 @@ def clean__local(args):
   with local.cwd(deploy_path):
     # remove and clean containers
     docker_compose['-f', 'docker-compose-locust.yml', 'down', '--rmi', 'local', '-v'] & FG
+    docker_compose['-f', 'docker-compose-seed.yml', 'down', '--rmi', 'local', '-v'] & FG
 
   with local.cwd(APP_PATH):
     docker_compose['-f', DOCKER_COMPOSE_FILE, 'down'] & FG
@@ -685,10 +686,60 @@ def wkld__local(args):
   tag = _get_last('deploy_tag')
   deploy_path = ROOT_PATH / 'deploy' / tag
 
-  # copy locust files to deploy folder
-  shutil.copy(ROOT_PATH / 'locust' / 'locustfile.py', deploy_path)
+  workers = [ { 'id': f"worker{i}"} for i in range(args['clients']) ]
 
-  # dynamically build docker-compose for clients
+  if not args['noseed']:
+    # copy locust files to deploy folder
+    shutil.copy(ROOT_PATH / 'locust' / 'seed.py', deploy_path)
+
+    # dynamically build docker-compose for client seeds
+    template = """
+      version: '3'
+
+      services:
+        {% for worker in workers %}
+        seed_{{ worker['id'] }}:
+          image: {{ locust_docker_image_name }}
+          working_dir: /mnt/locust
+          command: python3 seed.py
+          environment:
+            DEPLOY_TAG: {{ deploy_tag }}
+            WORKER_ID: {{ worker['id'] }}
+            AUTH_SERVICE_URL: {{ auth_service_url }}
+            ORDER_SERVICE_URL: {{ order_service_url }}
+            INSIDE_PAYMENT_SERVICE_URL: {{ inside_payment_service_url }}
+            TT_USERNAME: {{ tt_username }}
+            TT_PASSWORD: {{ tt_password }}
+            SEED_SIZE: {{ seed_size }}
+          volumes:
+            - ./:/mnt/locust
+        {% endfor %}
+    """
+    inventory = Environment().from_string(template).render({
+      'locust_docker_image_name': LOCUST_DOCKER_IMAGE_NAME,
+      #
+      'deploy_tag': tag,
+      'auth_service_url': _service_public_endpoint('local', 'ts-auth-service'),
+      'order_service_url': _service_public_endpoint('local', 'ts-order-service'),
+      'inside_payment_service_url': _service_public_endpoint('local', 'ts-inside-payment-service'),
+      'tt_username': 'fdse_microservice',
+      'tt_password': '111111',
+      'workers': workers,
+      'seed_size': SEED_TO_DURATION_FACTOR * args['duration'],
+    })
+    docker_compose_filepath = deploy_path / 'docker-compose-seed.yml'
+    with open(docker_compose_filepath, 'w') as f:
+      # remove empty lines and dedent for easier read
+      f.write(textwrap.dedent(inventory))
+    print(f"[SAVED] '{docker_compose_filepath}'")
+
+    # run seed
+    with local.cwd(deploy_path):
+      docker_compose['-f', f"{docker_compose_filepath}", 'up'] & FG
+      # remove and clean containers
+      docker_compose['-f', f"{docker_compose_filepath}", 'down', '--rmi', 'local', '-v'] & FG
+
+  # dynamically build docker-compose for locust
   template = """
     version: '3'
 
@@ -696,35 +747,33 @@ def wkld__local(args):
       master:
         image: {{ locust_docker_image_name }}
         working_dir: /mnt/locust
-        command: -f locustfile.py --master --master-bind-host=0.0.0.0 --master-bind-port=8089 --host http://master:8089 --expect-workers {{ num_workers }} --headless --reset-stats --only-summary --logfile {{ report_prefix }}.err --html {{ report_prefix }}.html --csv {{ report_prefix }} --run-time {{ run_time }} -u {{ users }}
+        command: locust -f locustfile.py --master --master-bind-host=0.0.0.0 --master-bind-port=8089 --host http://master:8089 --expect-workers {{ workers | length }} --headless --reset-stats --only-summary --logfile {{ report_prefix }}.err --html {{ report_prefix }}.html --csv {{ report_prefix }} --run-time {{ run_time }} -u {{ users }}
         environment:
+          DEPLOY_TAG: {{ deploy_tag }}
+          WORKER_ID: MASTER
           AUTH_SERVICE_URL: {{ auth_service_url }}
-          ORDER_SERVICE_URL: {{ order_service_url }}
           CANCEL_SERVICE_URL: {{ cancel_service_url }}
           INSIDE_PAYMENT_SERVICE_URL: {{ inside_payment_service_url }}
-          USERNAME: {{ username }}
-          PASSWORD: {{ password }}
-          WORKER_ID: MASTER
-          SEED_SIZE: {{ seed_size }}
+          TT_USERNAME: {{ tt_username }}
+          TT_PASSWORD: {{ tt_password }}
         ports:
           - 8089:8089
         volumes:
           - ./:/mnt/locust
 
-      {% for worker_id in range(num_workers) %}
-      worker{{ worker_id }}:
+      {% for worker in workers %}
+      {{ worker['id'] }}:
         image: {{ locust_docker_image_name }}
         working_dir: /mnt/locust
-        command: -f locustfile.py --worker --master-host master --master-port=8089 --headless --reset-stats
+        command: locust -f locustfile.py --worker --master-host master --master-port=8089 --headless --reset-stats
         environment:
-          WORKER_ID: worker{{ worker_id }}
+          DEPLOY_TAG: {{ deploy_tag }}
+          WORKER_ID: {{ worker['id'] }}
           AUTH_SERVICE_URL: {{ auth_service_url }}
-          ORDER_SERVICE_URL: {{ order_service_url }}
           CANCEL_SERVICE_URL: {{ cancel_service_url }}
           INSIDE_PAYMENT_SERVICE_URL: {{ inside_payment_service_url }}
-          USERNAME: {{ username }}
-          PASSWORD: {{ password }}
-          SEED_SIZE: {{ seed_size }}
+          TT_USERNAME: {{ tt_username }}
+          TT_PASSWORD: {{ tt_password }}
         volumes:
           - ./:/mnt/locust
       {% endfor %}
@@ -732,17 +781,16 @@ def wkld__local(args):
   inventory = Environment().from_string(template).render({
     'locust_docker_image_name': LOCUST_DOCKER_IMAGE_NAME,
     #
+    'deploy_tag': tag,
     'auth_service_url': _service_public_endpoint('local', 'ts-auth-service'),
-    'order_service_url': _service_public_endpoint('local', 'ts-order-service'),
     'cancel_service_url': _service_public_endpoint('local', 'ts-cancel-service'),
     'inside_payment_service_url': _service_public_endpoint('local', 'ts-inside-payment-service'),
-    'username': 'fdse_microservice',
-    'password': '111111',
-    'num_workers': args['clients'],
+    'tt_username': 'fdse_microservice',
+    'tt_password': '111111',
+    'workers': workers,
     'users': args['threads'],
     'run_time': f"{args['duration']}s",
     'report_prefix': tag,
-    'seed_size': SEED_TO_DURATION_FACTOR * args['duration'],
   })
   docker_compose_filepath = deploy_path / 'docker-compose-locust.yml'
   with open(docker_compose_filepath, 'w') as f:
@@ -756,8 +804,8 @@ def wkld__local(args):
     # save log from master in
     (docker_compose['-f', f"{docker_compose_filepath}", 'logs', '--no-color', '--no-log-prefix', 'master'] > f"master.out" )& FG
     # save log from workers
-    for worker_id in range(args['clients']):
-      (docker_compose['-f', f"{docker_compose_filepath}", 'logs', '--no-color', '--no-log-prefix', f"worker_{worker_id}"] > f"worker_{worker_id}.out" )& FG
+    for worker in workers:
+      (docker_compose['-f', f"{docker_compose_filepath}", 'logs', '--no-color', '--no-log-prefix', f"{worker['id']}"] > f"{worker['id']}.out" )& FG
     # remove and clean containers
     docker_compose['-f', f"{docker_compose_filepath}", 'down', '--rmi', 'local', '-v'] & FG
 
@@ -767,8 +815,8 @@ def wkld__local(args):
   # now move the gather files to the gather directory
   shutil.move(deploy_path / f"{tag}.err", gather_path / f"master_log.err")
   shutil.move(deploy_path / f"master.out", gather_path / f"master.out")
-  for worker_id in range(args['clients']):
-    shutil.move(deploy_path / f"worker_{worker_id}.out", gather_path / f"worker_{worker_id}.out")
+  for worker in workers:
+    shutil.move(deploy_path / f"{worker['id']}.out", gather_path / f"{worker['id']}.out")
   shutil.move(deploy_path / f"{tag}.html", gather_path / f"report.html")
   shutil.move(deploy_path / f"{tag}_exceptions.csv", gather_path / f"exceptions.csv")
   shutil.move(deploy_path / f"{tag}_failures.csv", gather_path / f"failures.csv")
@@ -943,7 +991,7 @@ SERVICES = _services()
 SERVICES_TO_PORT = _services_to_port()
 LAST_INFO_FILE = ROOT_PATH / '.last.yml'
 LOCUST_DOCKER_IMAGE_NAME = 'locust-tt:antipode'
-SEED_TO_DURATION_FACTOR = 50 # in 1 second it does less than this
+SEED_TO_DURATION_FACTOR = 35 # in 1 second it does less than this
 DEPLOY_TYPES = [ 'local', 'gcp' ]
 GCP_PROJECT_ID = 'pluribus'
 GCP_DOCKER_IMAGE_NAME = 'gcp-manager:antipode'
@@ -997,6 +1045,7 @@ if __name__ == '__main__':
 
   # workload application
   wkld_parser = subparsers.add_parser('wkld', help='Run workload generator')
+  wkld_parser.add_argument('-noseed', action='store_true', help="Skip seed generation")
   wkld_parser.add_argument('-c', '--clients', type=int, default=1, help="Number of clients to run on")
   wkld_parser.add_argument('-t', '--threads', type=int, default=1, help="Number of threads")
   wkld_parser.add_argument('-d', '--duration', type=int, default='1', help="Duration in seconds")
