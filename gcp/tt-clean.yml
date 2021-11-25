@@ -1,0 +1,11 @@
+---
+- hosts: swarm_manager
+  gather_facts: no
+  become: yes
+  any_errors_fatal: true
+
+  tasks:
+    - name: Remove train-ticket stack
+      shell: >
+        docker stack rm train-ticket
+      ignore_errors: yes

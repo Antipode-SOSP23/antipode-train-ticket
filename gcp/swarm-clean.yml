@@ -1,15 +1,4 @@
-- hosts: swarm_manager
-  any_errors_fatal: true
-  become: no
-  gather_facts: no
-
-  tasks:
-    - name: Undeploy train-ticket service
-      shell: >
-        docker stack rm train-ticket
-      ignore_errors: yes
-
-
+---
 - hosts:
     - cluster
     - clients

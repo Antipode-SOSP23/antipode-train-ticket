@@ -1,0 +1,16 @@
+---
+- hosts: swarm_manager
+  gather_facts: no
+  become: yes
+  any_errors_fatal: true
+
+  tasks:
+    - name: Remove seed stack
+      shell: >
+        docker stack rm seed
+      ignore_errors: yes
+
+    - name: Remove locust stack
+      shell: >
+        docker stack rm locust
+      ignore_errors: yes
