@@ -702,6 +702,10 @@ def wkld__local(args):
     # copy seed file to deploy folder
     shutil.copy(ROOT_PATH / 'wkld' / 'seed.py', deploy_path)
 
+    # limit the factor to the rate
+    # add a little bit more than the rate just to be sure
+    seed_size = int(min(SEED_TO_DURATION_FACTOR, args['rate']*1.5) * args['duration'])
+
     # dynamically build docker-compose for client seeds
     template = """
       version: '3'
@@ -735,7 +739,7 @@ def wkld__local(args):
       'tt_username': 'fdse_microservice',
       'tt_password': '111111',
       'workers': workers,
-      'seed_size': int(min(SEED_TO_DURATION_FACTOR, args['rate']*1.5) * args['duration']),
+      'seed_size': seed_size,
     })
     docker_compose_filepath = deploy_path / 'docker-compose-seed.yml'
     with open(docker_compose_filepath, 'w') as f:
