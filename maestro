@@ -618,6 +618,8 @@ def run__gcp(args):
       '-e', f"dashboard_url={_service_public_endpoint('gcp', 'ts-ui-dashboard')}",
       '-e', f"auth_url={_service_public_endpoint('gcp', 'ts-auth-service')}",
       '-e', f"order_url={_service_public_endpoint('gcp', 'ts-order-service')}",
+      '-e', f"cancel_url={_service_public_endpoint('gcp', 'ts-cancel-service')}",
+      '-e', f"payment_url={_service_public_endpoint('gcp', 'ts-inside-payment-service')}",
     ] & FG
 
 

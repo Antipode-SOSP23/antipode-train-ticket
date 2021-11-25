@@ -22,7 +22,7 @@
       register: num_deployed_services
       retries: 10
       delay: 45
-      # compare number of services spawned with
+      # compare number of services spawned with number of services that are up (1/1 replica state)
       until: (num_deployed_services.stdout | int) == (num_services.stdout | int)
 
     - name: Pause until dashboard is reachable
@@ -32,27 +32,21 @@
         method: GET
       register: _result
       until: _result.status == 200
-      retries: 30
-      delay: 10
+      retries: 10
+      delay: 30
 
-    - name: Pause until Login API is reachable
+    - name: Pause until key APIs are reachable
       uri:
-        url: "{{ auth_url }}/api/v1/login"
+        url: "{{ item }}"
         follow_redirects: none
         method: GET
       register: _result
       until: _result.status == 403
       failed_when: _result.status != 403
-      retries: 30
-      delay: 10
-
-    - name: Pause until Order API is reachable
-      uri:
-        url: "{{ order_url }}/api/v1/orderservice/welcome"
-        follow_redirects: none
-        method: GET
-      register: _result
-      until: _result.status == 403
-      failed_when: _result.status != 403
-      retries: 30
-      delay: 10
+      retries: 10
+      delay: 30
+      with_items:
+        - "{{ auth_url }}/api/v1/login"
+        - "{{ order_url }}/api/v1/orderservice/welcome"
+        - "{{ cancel_url }}/api/v1/cancelservice/welcome"
+        - "{{ payment_url }}/api/v1/inside_pay_service/welcome"
