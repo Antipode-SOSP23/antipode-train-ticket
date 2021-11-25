@@ -821,10 +821,10 @@ def wkld__local(args):
   with local.cwd(deploy_path):
     docker_compose['-f', f"{docker_compose_filepath}", 'up'] & FG
     # save log from master in
-    (docker_compose['-f', f"{docker_compose_filepath}", 'logs', '--no-color', '--no-log-prefix', 'master'] > f"master.out" )& FG
+    (docker_compose['-f', f"{docker_compose_filepath}", 'logs', '--no-color', '--no-log-prefix', 'master'] > f"{tag}_master.out" )& FG
     # save log from workers
     for worker in workers:
-      (docker_compose['-f', f"{docker_compose_filepath}", 'logs', '--no-color', '--no-log-prefix', f"{worker['id']}"] > f"{worker['id']}.out" )& FG
+      (docker_compose['-f', f"{docker_compose_filepath}", 'logs', '--no-color', '--no-log-prefix', f"{worker['id']}"] > f"{tag}_{worker['id']}.out" )& FG
     # remove and clean containers
     docker_compose['-f', f"{docker_compose_filepath}", 'down', '--rmi', 'local', '-v'] & FG
 
@@ -833,9 +833,9 @@ def wkld__local(args):
   os.makedirs(gather_path, exist_ok=True)
   # now move the gather files to the gather directory
   shutil.move(deploy_path / f"{tag}.err", gather_path / f"master_log.err")
-  shutil.move(deploy_path / f"master.out", gather_path / f"master.out")
+  shutil.move(deploy_path / f"{tag}_master.out", gather_path / f"master.out")
   for worker in workers:
-    shutil.move(deploy_path / f"{worker['id']}.out", gather_path / f"{worker['id']}.out")
+    shutil.move(deploy_path / f"{tag}_{worker['id']}.out", gather_path / f"{worker['id']}.out")
   shutil.move(deploy_path / f"{tag}.html", gather_path / f"report.html")
   shutil.move(deploy_path / f"{tag}_exceptions.csv", gather_path / f"exceptions.csv")
   shutil.move(deploy_path / f"{tag}_failures.csv", gather_path / f"failures.csv")
