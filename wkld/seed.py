@@ -94,6 +94,9 @@ with multiprocessing.Pool(processes=multiprocessing.cpu_count()*2) as p:
     order_ids.append(order_id)
     print(f"\tSeed [{i+1}/{SEED_SIZE}] -- {order_id}", flush=True) # hack to print to stdout progress bar steps
 
+# remove None entries from seed
+order_ids = [oid for oid in order_ids if oid is not None]
+
 # export order ids to yaml
 seed_filepath = f"{DEPLOY_TAG}_seed_{WORKER_ID}.yml"
 with open(seed_filepath, 'w+') as f:
