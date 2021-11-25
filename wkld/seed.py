@@ -81,7 +81,7 @@ def create_order_and_pay(args):
       return None
 
     return order_id
-  except requests.exceptions.ConnectionError as e:
+  except (requests.exceptions.ConnectionError, requests.exceptions.ReadTimeout) as e:
     print("[ERROR] Failed to create and pay order")
     return None
 
@@ -99,3 +99,4 @@ seed_filepath = f"{DEPLOY_TAG}_seed_{WORKER_ID}.yml"
 with open(seed_filepath, 'w+') as f:
   yaml.safe_dump(order_ids, f, default_flow_style=False)
 print(f"[SAVED] {seed_filepath}")
+exit(0)
