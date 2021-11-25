@@ -843,6 +843,99 @@ def wkld__local(args):
   shutil.move(deploy_path / f"{tag}_stats_history.csv", gather_path / f"stats_history.csv")
   shutil.move(deploy_path / f"{tag}_stats.csv", gather_path / f"stats.csv")
 
+def wkld__gcp(args):
+  _force_gcp_docker()
+  import shutil
+  from jinja2 import Environment
+  import textwrap
+  from plumbum import local, FG
+  from plumbum.cmd import docker, docker_compose, ansible_playbook
+
+
+  tag = _get_last('gcp', 'deploy_tag')
+  deploy_path = ROOT_PATH / 'deploy' / tag
+  config = _load_yaml(ROOT_PATH / _get_last('gcp', 'deploy_config'))
+  inventory = _load_inventory(deploy_path / 'inventory.cfg')
+
+  if len(config['clients']) < args['clients']:
+    print(f"[ERROR] Config '{_get_last('gcp', 'deploy_config')}' has less clients ({len(config['clients'])}) than cli args ({args['clients']})")
+    exit(-1)
+  # select clients according to wanted run
+  clients_inventory = { i:inventory[i] for i in list(config['clients'].keys())[:args['clients']] }
+
+  if not args['noseed']:
+    # copy locust files to deploy folder
+    shutil.copy(ROOT_PATH / 'wkld' / 'seed.py', deploy_path)
+
+    # limit the factor to the rate
+    # add a little bit more than the rate just to be sure
+    seed_size = int(min(SEED_TO_DURATION_FACTOR, args['rate']*1.5) * args['duration'])
+
+    # dynamically build docker-compose for client seeds
+    template = """
+      version: '3'
+
+      networks:
+        {{ docker_compose_network }}:
+          external:
+            name: {{ docker_compose_network }}
+
+      services:
+        {% for _,worker in workers.items() %}
+        {{ worker['gcp_name'] }}:
+          image: {{ gcp_docker_image_namespace }}/{{ locust_docker_image_name }}
+          working_dir: /mnt/locust
+          command: python3 seed.py
+          environment:
+            DEPLOY_TAG: {{ deploy_tag }}
+            WORKER_ID: {{ worker['gcp_name'] }}
+            AUTH_SERVICE_URL: {{ auth_service_url }}
+            ORDER_SERVICE_URL: {{ order_service_url }}
+            INSIDE_PAYMENT_SERVICE_URL: {{ inside_payment_service_url }}
+            TT_USERNAME: {{ tt_username }}
+            TT_PASSWORD: {{ tt_password }}
+            SEED_SIZE: {{ seed_size }}
+          volumes:
+            - ./:/mnt/locust
+          deploy:
+            restart_policy:
+              # do not restart when ends correctly
+              condition: on-failure
+            placement:
+              constraints:
+                - node.hostname == {{ worker['gcp_name'] }}
+        {% endfor %}
+    """
+    inventory = Environment().from_string(template).render({
+      'locust_docker_image_name': LOCUST_DOCKER_IMAGE_NAME,
+      'gcp_docker_image_namespace': GCP_DOCKER_IMAGE_NAMESPACE,
+      'docker_compose_network': DOCKER_COMPOSE_NETWORK,
+      #
+      'deploy_tag': tag,
+      'auth_service_url': _service_public_endpoint('gcp', 'ts-auth-service'),
+      'order_service_url': _service_public_endpoint('gcp', 'ts-order-service'),
+      'inside_payment_service_url': _service_public_endpoint('gcp', 'ts-inside-payment-service'),
+      'tt_username': 'fdse_microservice',
+      'tt_password': '111111',
+      'workers': clients_inventory,
+      'seed_size': seed_size,
+    })
+    docker_compose_filepath = deploy_path / 'docker-compose-seed.yml'
+    with open(docker_compose_filepath, 'w') as f:
+      # remove empty lines and dedent for easier read
+      f.write(textwrap.dedent(inventory))
+    print(f"[SAVED] '{docker_compose_filepath}'")
+
+    # run seed playbook
+    with local.cwd(ROOT_PATH / 'gcp'):
+      ansible_playbook['wkld-seed.yml',
+        '-i', deploy_path / 'inventory.cfg',
+        '-e', f"deploy_path={deploy_path}",
+        '-e', f"deploy_tag={tag}",
+        '-e', f"seed_size={seed_size}",
+        '-e', f"num_workers={len(clients_inventory)}",
+      ] & FG
+
 
 #--------------
 # HELPERS
