@@ -699,7 +699,7 @@ def wkld__local(args):
   workers = [ { 'id': f"worker{i}"} for i in range(args['clients']) ]
 
   if not args['noseed']:
-    # copy locust files to deploy folder
+    # copy seed file to deploy folder
     shutil.copy(ROOT_PATH / 'wkld' / 'seed.py', deploy_path)
 
     # dynamically build docker-compose for client seeds
@@ -735,7 +735,7 @@ def wkld__local(args):
       'tt_username': 'fdse_microservice',
       'tt_password': '111111',
       'workers': workers,
-      'seed_size': SEED_TO_DURATION_FACTOR * args['duration'],
+      'seed_size': int(min(SEED_TO_DURATION_FACTOR, args['rate']*1.5) * args['duration']),
     })
     docker_compose_filepath = deploy_path / 'docker-compose-seed.yml'
     with open(docker_compose_filepath, 'w') as f:
@@ -748,6 +748,9 @@ def wkld__local(args):
       docker_compose['-f', f"{docker_compose_filepath}", 'up'] & FG
       # remove and clean containers
       docker_compose['-f', f"{docker_compose_filepath}", 'down', '--rmi', 'local', '-v'] & FG
+
+  # copy locust files to deploy folder
+  shutil.copy(ROOT_PATH / 'wkld' / 'locustfile.py', deploy_path)
 
   # dynamically build docker-compose for locust
   template = """
@@ -766,6 +769,7 @@ def wkld__local(args):
           INSIDE_PAYMENT_SERVICE_URL: {{ inside_payment_service_url }}
           TT_USERNAME: {{ tt_username }}
           TT_PASSWORD: {{ tt_password }}
+          RATE: {{ rate }}
         ports:
           - 8089:8089
         volumes:
@@ -784,6 +788,7 @@ def wkld__local(args):
           INSIDE_PAYMENT_SERVICE_URL: {{ inside_payment_service_url }}
           TT_USERNAME: {{ tt_username }}
           TT_PASSWORD: {{ tt_password }}
+          RATE: {{ rate }}
         volumes:
           - ./:/mnt/locust
       {% endfor %}
@@ -800,6 +805,7 @@ def wkld__local(args):
     'workers': workers,
     'users': args['threads'],
     'run_time': f"{args['duration']}s",
+    'rate': args['rate'],
     'report_prefix': tag,
   })
   docker_compose_filepath = deploy_path / 'docker-compose-locust.yml'
@@ -1058,8 +1064,8 @@ if __name__ == '__main__':
   wkld_parser.add_argument('-noseed', action='store_true', help="Skip seed generation")
   wkld_parser.add_argument('-c', '--clients', type=int, default=1, help="Number of clients to run on")
   wkld_parser.add_argument('-t', '--threads', type=int, default=1, help="Number of threads")
-  wkld_parser.add_argument('-d', '--duration', type=int, default='1', help="Duration in seconds")
-  # wkld_parser.add_argument('-r', '--rate', type=int, default=1, help="Work rate (throughput) in request per second")
+  wkld_parser.add_argument('-d', '--duration', type=int, default=1, help="Duration in seconds")
+  wkld_parser.add_argument('-r', '--rate', type=int, default=999999, help="Work rate (throughput) in request per second")
 
   # parse args
   args = vars(main_parser.parse_args())
