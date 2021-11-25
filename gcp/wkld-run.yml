@@ -58,9 +58,4 @@
       # compare number of services spawned with number of services that are up (1/1 replica state)
       until: (completed_locust.stdout | int) == ((num_workers | int) + 1)
 
-    # Since if you run again we remove the stack it does us no harm to keep the stack up so we can look at logs
-    # - name: Remove seed stack
-    #   shell: >
-    #     docker stack rm seed
-
-    # TODO: gather files from host
+    # WARN: Only remove the stack after gather

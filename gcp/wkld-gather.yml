@@ -1,0 +1,41 @@
+- hosts: swarm_manager
+  gather_facts: no
+  become: yes
+  any_errors_fatal: true
+
+  tasks:
+    - name: Wait for all locust evaluation files to be present
+      wait_for:
+        path: "/code/wkld/{{ item }}"
+      with_items:
+        - "{{ deploy_tag }}.err"
+        - "{{ deploy_tag }}.html"
+        - "{{ deploy_tag }}_exceptions.csv"
+        - "{{ deploy_tag }}_failures.csv"
+        - "{{ deploy_tag }}_stats_history.csv"
+        - "{{ deploy_tag }}_stats.csv"
+
+    - name: Register all services names
+      shell: >
+        docker stack ps --format {% raw %}"{{.Name}}"{% endraw %} locust | cut -d "_" -f 2 | cut -d "." -f 1
+      register: locust_services
+
+    - name: Save stack containers logs
+      shell: >
+        docker service logs --raw locust_{{ item }} 1> /code/wkld/{{ deploy_tag }}_{{ item }}.out 2>&1
+      with_items:
+        - "{{ locust_services.stdout_lines }}"
+
+    - name: Download eval files
+      # run_once: true
+      synchronize:
+        src: "/code/wkld/{{ deploy_tag }}*"
+        dest: "{{ gather_path }}"
+        mode: pull
+        use_ssh_args: yes
+        archive: no
+
+    # Since if you run again we remove the stack it does us no harm to keep the stack up so we can look at logs
+    # - name: Remove seed stack
+    #   shell: >
+    #     docker stack rm seed

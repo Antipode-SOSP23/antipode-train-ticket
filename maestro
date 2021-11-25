@@ -1038,6 +1038,17 @@ def wkld__gcp(args):
       '-e', f"num_workers={len(clients_inventory)}",
     ] & FG
 
+    # create gather folder
+    gather_path = ROOT_PATH / 'gather' / tag
+    os.makedirs(gather_path, exist_ok=True)
+
+    ansible_playbook['wkld-gather.yml',
+      '-i', deploy_path / 'inventory.cfg',
+      '-e', f"deploy_path={deploy_path}",
+      '-e', f"gather_path={gather_path}",
+      '-e', f"deploy_tag={tag}",
+    ] & FG
+
 
 #--------------
 # HELPERS
