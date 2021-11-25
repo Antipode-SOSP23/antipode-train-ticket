@@ -1,0 +1,66 @@
+---
+- hosts: clients
+  gather_facts: no
+  become: no
+  any_errors_fatal: true
+
+  tasks:
+    - name: Check for seed yml file
+      stat:
+        path: "/code/wkld/{{ deploy_tag }}_seed.yml"
+      register: seed_filepath
+
+    - name: Fail if already run on host
+      fail:
+        msg: "Missing seed file"
+      when: not seed_filepath.stat.exists
+
+- hosts: clients, swarm_manager
+  gather_facts: no
+  become: no
+  any_errors_fatal: true
+
+  tasks:
+    - name: Copy locustfile.py file
+      copy:
+        src: "{{ deploy_path }}/locustfile.py"
+        dest: /code/wkld/locustfile.py
+        mode: u=rwx,g=r,o=xr
+
+- hosts: swarm_manager
+  gather_facts: no
+  become: no
+  any_errors_fatal: true
+
+  tasks:
+    - name: Remove any pre-existing locust stack
+      shell: >
+        docker stack rm locust
+
+    - name: Copy locust docker-compose file
+      copy:
+        src: "{{ deploy_path }}/docker-compose-locust.yml"
+        dest: /code/wkld/docker-compose-locust.yml
+        mode: u=rwx,g=r,o=xr
+
+    - name: Run locust
+      shell: >
+        docker stack deploy --with-registry-auth --compose-file /code/wkld/docker-compose-locust.yml locust ;
+      register: out
+      failed_when: "not(out.rc == 0) or 'fail' in out.stderr"
+
+    - name: Wait for locust to complete
+      shell: >
+        docker stack ps --format {% raw %}"{{.ID}}|{{.CurrentState}}"{% endraw %} locust | grep "Complete" | wc -l
+      register: completed_locust
+      retries: 3
+      delay: "{{ duration }}"
+      # compare number of services spawned with number of services that are up (1/1 replica state)
+      until: (completed_locust.stdout | int) == ((num_workers | int) + 1)
+
+    # Since if you run again we remove the stack it does us no harm to keep the stack up so we can look at logs
+    # - name: Remove seed stack
+    #   shell: >
+    #     docker stack rm seed
+
+    # TODO: gather files from host

@@ -935,6 +935,109 @@ def wkld__gcp(args):
         '-e', f"num_workers={len(clients_inventory)}",
       ] & FG
 
+  # copy locust file to deploy folder
+  shutil.copy(ROOT_PATH / 'wkld' / 'locustfile.py', deploy_path)
+
+  # dynamically build docker-compose for clients
+  template = """
+    version: '3'
+
+    networks:
+      {{ docker_compose_network }}:
+        external:
+          name: {{ docker_compose_network }}
+
+    services:
+      master:
+        image: {{ gcp_docker_image_namespace }}/{{ locust_docker_image_name }}
+        working_dir: /mnt/locust
+        command: locust -f locustfile.py --master --master-bind-host=0.0.0.0 --master-bind-port=8089 --host http://master:8089 --expect-workers {{ workers | length }} --headless --reset-stats --only-summary --logfile {{ deploy_tag }}.err --html {{ deploy_tag }}.html --csv {{ deploy_tag }} --run-time {{ run_time }} -u {{ users }}
+        environment:
+          DEPLOY_TAG: {{ deploy_tag }}
+          WORKER_ID: MASTER
+          AUTH_SERVICE_URL: {{ auth_service_url }}
+          CANCEL_SERVICE_URL: {{ cancel_service_url }}
+          INSIDE_PAYMENT_SERVICE_URL: {{ inside_payment_service_url }}
+          TT_USERNAME: {{ tt_username }}
+          TT_PASSWORD: {{ tt_password }}
+          RATE: {{ rate }}
+        ports:
+          - 8089:8089
+        volumes:
+          - /code/wkld:/mnt/locust
+        networks:
+          {{ docker_compose_network }}:
+            aliases:
+              - master
+        deploy:
+          restart_policy:
+            # do not restart when ends correctly
+            condition: on-failure
+          placement:
+            constraints:
+              - node.hostname == manager
+
+      {% for _,worker in workers.items() %}
+      {{ worker['gcp_name'] }}:
+        image: {{ gcp_docker_image_namespace }}/{{ locust_docker_image_name }}
+        working_dir: /mnt/locust
+        command: locust -f locustfile.py --worker --master-host master --master-port=8089 --headless --reset-stats
+        environment:
+          DEPLOY_TAG: {{ deploy_tag }}
+          WORKER_ID: {{ worker['gcp_name'] }}
+          AUTH_SERVICE_URL: {{ auth_service_url }}
+          CANCEL_SERVICE_URL: {{ cancel_service_url }}
+          INSIDE_PAYMENT_SERVICE_URL: {{ inside_payment_service_url }}
+          TT_USERNAME: {{ tt_username }}
+          TT_PASSWORD: {{ tt_password }}
+          RATE: {{ rate }}
+        volumes:
+          - /code/wkld:/mnt/locust
+        networks:
+          {{ docker_compose_network }}:
+            aliases:
+              - {{ worker['gcp_name'] }}
+        deploy:
+          restart_policy:
+            # do not restart when ends correctly
+            condition: on-failure
+          placement:
+            constraints:
+              - node.hostname == {{ worker['gcp_name'] }}
+      {% endfor %}
+  """
+  template_render = Environment().from_string(template).render({
+    'gcp_docker_image_namespace': GCP_DOCKER_IMAGE_NAMESPACE,
+    'locust_docker_image_name': LOCUST_DOCKER_IMAGE_NAME,
+    'docker_compose_network': DOCKER_COMPOSE_NETWORK,
+    'workers': clients_inventory,
+    'deploy_tag': tag,
+    #
+    'auth_service_url': _service_public_endpoint('gcp', 'ts-auth-service'),
+    'cancel_service_url': _service_public_endpoint('gcp', 'ts-cancel-service'),
+    'inside_payment_service_url': _service_public_endpoint('gcp', 'ts-inside-payment-service'),
+    'tt_username': 'fdse_microservice',
+    'tt_password': '111111',
+    'users': args['threads'],
+    'run_time': f"{args['duration']}s",
+    'rate': args['rate'],
+  })
+  docker_compose_filepath = deploy_path / 'docker-compose-locust.yml'
+  with open(docker_compose_filepath, 'w') as f:
+    # remove empty lines and dedent for easier read
+    f.write(textwrap.dedent(template_render))
+  print(f"[SAVED] '{docker_compose_filepath}'")
+
+  # now we run the playbook
+  with local.cwd(ROOT_PATH / 'gcp'):
+    ansible_playbook['wkld-run.yml',
+      '-i', deploy_path / 'inventory.cfg',
+      '-e', f"deploy_path={deploy_path}",
+      '-e', f"deploy_tag={tag}",
+      '-e', f"duration={args['duration']}",
+      '-e', f"num_workers={len(clients_inventory)}",
+    ] & FG
+
 
 #--------------
 # HELPERS
