@@ -41,5 +41,10 @@
         dest: "/tmp"
         remote_src: yes
 
+    - name: Remove zip file
+      file:
+        path: "/tmp/node_exporter-1.1.1.linux-amd64.tar.gz"
+        state: absent
+
     - name: Move nodeexporter to installation dir
       command: mv "/tmp/node_exporter-1.1.1.linux-amd64/node_exporter" "/code/prometheus/"
