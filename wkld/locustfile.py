@@ -1,3 +1,4 @@
+from locust import events
 from locust import HttpUser, task
 import locust.stats
 from locust_plugins import constant_total_ips
@@ -17,6 +18,13 @@ TT_PASSWORD = os.environ['TT_PASSWORD']
 DEPLOY_TAG = os.environ['DEPLOY_TAG']
 WORKER_ID = os.environ['WORKER_ID']
 RATE = int(os.environ['RATE'])
+
+@events.quitting.add_listener
+def _(environment, **kw):
+  # for now we always return success since we will then look at the file outputs
+  # See more info about using test results to define exit code here:
+  # http://docs.locust.io/en/stable/running-without-web-ui.html#controlling-the-exit-code-of-the-locust-process
+  environment.process_exit_code = 0
 
 class TrainTicket(HttpUser):
   auth_token = None
