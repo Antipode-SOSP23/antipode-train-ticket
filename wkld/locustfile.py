@@ -40,8 +40,8 @@ class TrainTicket(HttpUser):
   def cancel_order(self):
     # build header file
     headers = { 'Authorization': 'Bearer ' + self.auth_token }
-    # remove first one always
-    order_id = self.order_ids.pop(0)
+    # remove from orders - this is atomic so client threads are not an issue
+    order_id = self.order_ids.pop()
     # cancel order
     self.client.get(f"{CANCEL_SERVICE_URL}/api/v1/cancelservice/cancel/{order_id}/{self.user_id}", headers=headers, name=f"/api/v1/cancelservice/cancel/:order_id/:user_id")
     # then fetch the money to check if any inconsistency between drawbacks and cancelling the order
