@@ -616,6 +616,7 @@ def run__gcp(args):
   with local.cwd(ROOT_PATH / 'gcp'):
     ansible_playbook['tt-run.yml', '-i', inventory_filepath,
       '-e', f"dashboard_url={_service_public_endpoint('gcp', 'ts-ui-dashboard')}",
+      '-e', f"auth_url={_service_public_endpoint('gcp', 'ts-auth-service')}",
     ] & FG
 
 
