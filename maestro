@@ -764,7 +764,7 @@ def wkld__local(args):
       master:
         image: {{ locust_docker_image_name }}
         working_dir: /mnt/locust
-        command: locust -f locustfile.py --master --master-bind-host=0.0.0.0 --master-bind-port=8089 --host http://master:8089 --expect-workers {{ workers | length }} --headless --reset-stats --only-summary --logfile {{ report_prefix }}.err --html {{ report_prefix }}.html --csv {{ report_prefix }} --run-time {{ run_time }} -u {{ users }}
+        command: locust -f locustfile.py --master --master-bind-host=0.0.0.0 --master-bind-port=8089 --host http://master:8089 --expect-workers {{ workers | length }} --headless --reset-stats --only-summary --logfile {{ deploy_tag }}.err --html {{ deploy_tag }}.html --csv {{ deploy_tag }} --run-time {{ run_time }} -u {{ users }}
         environment:
           DEPLOY_TAG: {{ deploy_tag }}
           WORKER_ID: MASTER
@@ -810,7 +810,6 @@ def wkld__local(args):
     'users': args['threads'],
     'run_time': f"{args['duration']}s",
     'rate': args['rate'],
-    'report_prefix': tag,
   })
   docker_compose_filepath = deploy_path / 'docker-compose-locust.yml'
   with open(docker_compose_filepath, 'w') as f:
