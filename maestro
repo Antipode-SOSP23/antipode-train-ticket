@@ -86,10 +86,10 @@ def info(args):
     print(f"Portainer:\t{_service_public_endpoint(args['deploy_type'], 'portainer')}\t\t\t(admin/antipode)")
     print(f"Prometheus:\t{_service_public_endpoint(args['deploy_type'], 'prometheus')}/graph?g0.expr=100%20-%20(avg%20by%20(instance)%20(irate(node_cpu_seconds_total%7Bjob%3D%22nodeexporter%22%2Cmode%3D%22idle%22%7D%5B5m%5D))%20*%20100)&g0.tab=0&g0.stacked=0&g0.range_input=10m&g0.step_input=1&g1.expr=(node_memory_MemTotal_bytes%20-%20node_memory_MemFree_bytes)%2Fnode_memory_MemTotal_bytes%20*100&g1.tab=0&g1.stacked=0&g1.range_input=10m&g1.step_input=1&g2.expr=(node_filesystem_size_bytes%7Bmountpoint%3D%22%2F%22%7D%20-%20node_filesystem_free_bytes%7Bmountpoint%3D%22%2F%22%7D)%2Fnode_filesystem_size_bytes%7Bmountpoint%3D%22%2F%22%7D%20*100&g2.tab=0&g2.stacked=0&g2.range_input=10m&g2.step_input=1&g3.expr=rate(node_network_transmit_bytes_total%7Bdevice%3D%22ens4%22%7D%5B10s%5D)*8%2F1024%2F1024&g3.tab=0&g3.stacked=0&g3.range_input=10m&g3.step_input=1")
     print(f"API Docs:")
-    print(f"\tts-auth-service:\t\t{_service_public_endpoint(args['deploy_type'], 'ts-auth-service')}/swagger-ui.html#!/user-controller/")
+    print(f"\tts-auth-service:\t\t{_service_public_endpoint(args['deploy_type'], 'ts-auth-service')}/swagger-ui.html#/user-controller/")
     print(f"\tts-contacts-service:\t\t{_service_public_endpoint(args['deploy_type'], 'ts-contacts-service')}/swagger-ui.html#/contacts-controller")
-    print(f"\tts-order-service:\t\t{_service_public_endpoint(args['deploy_type'], 'ts-order-service')}/swagger-ui.html")
-    print(f"\tts-cancel-service:\t\t{_service_public_endpoint(args['deploy_type'], 'ts-cancel-service')}/swagger-ui.html#!/cancel-controller")
+    print(f"\tts-order-service:\t\t{_service_public_endpoint(args['deploy_type'], 'ts-order-service')}/swagger-ui.html#/order-controller")
+    print(f"\tts-cancel-service:\t\t{_service_public_endpoint(args['deploy_type'], 'ts-cancel-service')}/swagger-ui.html#/cancel-controller")
     print(f"\tts-inside-payment-service:\t{_service_public_endpoint(args['deploy_type'], 'ts-inside-payment-service')}/swagger-ui.html#/inside-payment-controller")
 
   if args['ps']:
@@ -617,6 +617,7 @@ def run__gcp(args):
     ansible_playbook['tt-run.yml', '-i', inventory_filepath,
       '-e', f"dashboard_url={_service_public_endpoint('gcp', 'ts-ui-dashboard')}",
       '-e', f"auth_url={_service_public_endpoint('gcp', 'ts-auth-service')}",
+      '-e', f"order_url={_service_public_endpoint('gcp', 'ts-order-service')}",
     ] & FG
 
 
