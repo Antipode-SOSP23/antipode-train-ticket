@@ -708,7 +708,7 @@ def wkld__local(args):
 
       services:
         {% for worker in workers %}
-        seed_{{ worker['id'] }}:
+        {{ worker['id'] }}:
           image: {{ locust_docker_image_name }}
           working_dir: /mnt/locust
           command: python3 seed.py

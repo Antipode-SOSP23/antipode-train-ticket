@@ -98,7 +98,7 @@ with multiprocessing.Pool(processes=multiprocessing.cpu_count()*2) as p:
 order_ids = [oid for oid in order_ids if oid is not None]
 
 # export order ids to yaml
-seed_filepath = f"{DEPLOY_TAG}_seed_{WORKER_ID}.yml"
+seed_filepath = f"{DEPLOY_TAG}_seed.yml"
 with open(seed_filepath, 'w+') as f:
   yaml.safe_dump(order_ids, f, default_flow_style=False)
 print(f"[SAVED] {seed_filepath}")
