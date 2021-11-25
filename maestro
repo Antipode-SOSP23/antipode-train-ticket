@@ -116,7 +116,7 @@ def info__local(args):
       if args['follow']: compose_args += ['--follow']
       compose_args += ['--tail=1000', args['logs']]
     elif args['logs'].startswith('worker') or args['logs'] == 'master':
-      tag = _get_last('deploy_tag')
+      tag = _get_last('local', 'deploy_tag')
       compose_args = ['-f', ROOT_PATH / 'deploy' / tag / 'docker-compose-locust.yml', 'logs']
       if args['follow']: compose_args += ['--follow']
       compose_args += ['--tail=1000', args['logs']]
@@ -126,8 +126,8 @@ def info__local(args):
 def info__gcp(args):
   _force_gcp_docker()
 
-  inventory = _load_inventory(ROOT_PATH / 'deploy' / _get_last('deploy_tag') / 'inventory.cfg')
-  config = _load_yaml(ROOT_PATH / _get_last('deploy_config'))
+  inventory = _load_inventory(ROOT_PATH / 'deploy' / _get_last('gcp', 'deploy_tag') / 'inventory.cfg')
+  config = _load_yaml(ROOT_PATH / _get_last('gcp', 'deploy_config'))
 
   if args['ps']:
     from plumbum import FG
@@ -363,7 +363,7 @@ def deploy__gcp(args):
 
 
   tag = f"{datetime.now().strftime('%Y%m%d%H%M%S')}"
-  _set_last('deploy_tag', tag)
+  _set_last('gcp', 'deploy_tag', tag)
 
   # create deploy folder
   deploy_path = ROOT_PATH / 'deploy' / tag
@@ -372,7 +372,7 @@ def deploy__gcp(args):
   # load the config and the local compose
   compose = _load_yaml(DOCKER_COMPOSE_FILE)
   config = _load_yaml(args['config'])
-  _set_last('deploy_config', args['config'])
+  _set_last('gcp', 'deploy_config', args['config'])
 
   # Set external network driver
   compose['networks'][DOCKER_COMPOSE_NETWORK]['external'] = { 'name': DOCKER_COMPOSE_NETWORK }
@@ -573,7 +573,7 @@ def run__local(args):
 
 
   tag = f"{datetime.now().strftime('%Y%m%d%H%M%S')}"
-  _set_last('deploy_tag', tag)
+  _set_last('local', 'deploy_tag', tag)
 
   # create deploy folder
   deploy_path = ROOT_PATH / 'deploy' / tag
@@ -593,21 +593,21 @@ def run__gcp(args):
   from plumbum import local, FG
   from plumbum.cmd import ansible_playbook
 
-  tag = _get_last('deploy_tag')
+  tag = _get_last('gcp', 'deploy_tag')
   deploy_path = ROOT_PATH / 'deploy' / tag
   inventory_filepath = deploy_path / 'inventory.cfg'
   inventory = _load_inventory(inventory_filepath)
 
   # run playbooks
   if args['prometheus']:
-    _set_last('prometheus', True)
+    _set_last('gcp', 'prometheus', True)
     with local.cwd(ROOT_PATH / 'gcp'):
       ansible_playbook['prometheus-deploy.yml', '-i', inventory_filepath] & FG
       ansible_playbook['prometheus-run.yml', '-i', inventory_filepath] & FG
       _wait_url_up(f"http://{inventory[GCP_SWARM_MANAGER_NAME]['external_ip']}:9090")
 
   if args['portainer']:
-    _set_last('portainer', True)
+    _set_last('gcp', 'portainer', True)
     with local.cwd(ROOT_PATH / 'gcp'):
       ansible_playbook['portainer-run.yml', '-i', inventory_filepath] & FG
       _wait_url_up(f"http://{inventory[GCP_SWARM_MANAGER_NAME]['external_ip']}:9000")
@@ -634,7 +634,7 @@ def clean__local(args):
   from plumbum import local, FG
   from plumbum.cmd import docker, docker_compose
 
-  tag = _get_last('deploy_tag')
+  tag = _get_last('local', 'deploy_tag')
   deploy_path = ROOT_PATH / 'deploy' / tag
 
   # run locust and remove containers
@@ -653,20 +653,20 @@ def clean__gcp(args):
   from plumbum import local, FG
   from plumbum.cmd import ansible_playbook
 
-  tag = _get_last('deploy_tag')
+  tag = _get_last('gcp', 'deploy_tag')
   deploy_path = ROOT_PATH / 'deploy' / tag
   inventory_filepath = deploy_path / 'inventory.cfg'
   inventory = _load_inventory(inventory_filepath)
 
-  if _get_last('prometheus'):
+  if _get_last('gcp', 'prometheus'):
     with local.cwd(ROOT_PATH / 'gcp'):
       ansible_playbook['prometheus-clean.yml', '-i', inventory_filepath] & FG
-      _set_last('prometheus', False) # already cleaned so we remove flag
+      _set_last('gcp', 'prometheus', False) # already cleaned so we remove flag
 
-  if _get_last('portainer'):
+  if _get_last('gcp', 'portainer'):
     with local.cwd(ROOT_PATH / 'gcp'):
       ansible_playbook['portainer-clean.yml', '-i', inventory_filepath] & FG
-      _set_last('portainer', False) # already cleaned so we remove flag
+      _set_last('gcp', 'portainer', False) # already cleaned so we remove flag
 
   with local.cwd(ROOT_PATH / 'gcp'):
     ansible_playbook['swarm-clean.yml', '-i', inventory_filepath] & FG
@@ -693,7 +693,7 @@ def wkld__local(args):
   import shutil
 
   # tag for this deployment
-  tag = _get_last('deploy_tag')
+  tag = _get_last('local', 'deploy_tag')
   deploy_path = ROOT_PATH / 'deploy' / tag
 
   workers = [ { 'id': f"worker{i}"} for i in range(args['clients']) ]
@@ -865,20 +865,20 @@ def _dump_yaml(path, d):
   with open(path, 'w+') as f:
     yaml.safe_dump(d, f, default_flow_style=False)
 
-def _set_last(k,v):
-  import yaml
+def _set_last(deploy_type, k,v):
   doc = {}
   # if file exists parse yaml otherwise create empty dict to write to
   if Path(LAST_INFO_FILE).exists():
     doc = _load_yaml(LAST_INFO_FILE)
   # write new value and save to file
-  doc[k] = v
+  if deploy_type not in doc:
+    doc[deploy_type] = {}
+  doc[deploy_type][k] = v
   _dump_yaml(LAST_INFO_FILE, doc)
 
-def _get_last(k):
-  import yaml
+def _get_last(deploy_type, k):
   doc = _load_yaml(LAST_INFO_FILE)
-  return doc.get(k)
+  return doc.get(deploy_type).get(k)
 
 def _split_list(a, n):
     k, m = divmod(len(a), n)
@@ -909,8 +909,8 @@ def _service_public_endpoint__local(name):
     return public_ip, SERVICES_TO_PORT[name]
 
 def _service_public_endpoint__gcp(name):
-  inventory = _load_inventory(ROOT_PATH / 'deploy' / _get_last('deploy_tag') / 'inventory.cfg')
-  config = _load_yaml(ROOT_PATH / _get_last('deploy_config'))
+  inventory = _load_inventory(ROOT_PATH / 'deploy' / _get_last('gcp', 'deploy_tag') / 'inventory.cfg')
+  config = _load_yaml(ROOT_PATH / _get_last('gcp', 'deploy_config'))
 
   if name == 'portainer':
     return inventory[GCP_SWARM_MANAGER_NAME]['external_ip'], 9000
