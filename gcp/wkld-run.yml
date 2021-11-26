@@ -5,6 +5,7 @@
   any_errors_fatal: true
 
   tasks:
+
     - name: Check for seed yml file
       stat:
         path: "/code/wkld/{{ deploy_tag }}_seed.yml"
@@ -21,6 +22,7 @@
   any_errors_fatal: true
 
   tasks:
+
     - name: Copy locustfile.py file
       copy:
         src: "{{ deploy_path }}/locustfile.py"
@@ -33,6 +35,7 @@
   any_errors_fatal: true
 
   tasks:
+
     - name: Remove any pre-existing locust stack
       shell: >
         docker stack rm locust
@@ -53,8 +56,8 @@
       shell: >
         docker stack ps --format {% raw %}"{{.ID}}|{{.CurrentState}}"{% endraw %} locust | grep "Complete" | wc -l
       register: completed_locust
-      retries: 3
-      delay: "{{ duration }}"
+      retries: 8
+      delay: "{{ duration // 4 }}"
       # compare number of services spawned with number of services that are up (1/1 replica state)
       until: (completed_locust.stdout | int) == ((num_workers | int) + 1)
 

@@ -5,6 +5,7 @@
   any_errors_fatal: true
 
   tasks:
+
     - name: Ensures wkld dir exists
       file:
         path: /code/wkld
@@ -23,6 +24,7 @@
   any_errors_fatal: true
 
   tasks:
+
     - name: Remove any pre-existing seed stack
       shell: >
         docker stack rm seed
@@ -49,7 +51,7 @@
       shell: >
         docker stack ps --format {% raw %}"{{.ID}}|{{.CurrentState}}"{% endraw %} seed | grep "Complete" | wc -l
       register: completed_seeds
-      retries: 20
+      retries: 40
       delay: 60
       # compare number of services spawned with number of services that are up (1/1 replica state)
       until: (completed_seeds.stdout | int) == (num_workers | int)
@@ -65,6 +67,7 @@
   any_errors_fatal: true
 
   tasks:
+
     - name: Wait until the seed file exists in all clients
       wait_for:
         path: "/code/wkld/{{ deploy_tag }}_seed.yml"
