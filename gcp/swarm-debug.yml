@@ -1,0 +1,11 @@
+---
+- hosts: swarm_manager
+  any_errors_fatal: true
+  gather_facts: no
+  become: no
+
+  tasks:
+
+    - name: print vars
+      debug:
+        msg: "{{ hostvars }}"
