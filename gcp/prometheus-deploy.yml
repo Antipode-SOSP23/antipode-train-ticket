@@ -21,7 +21,7 @@
         mode: u=rwx,g=r,o=xr
 
 # deploy prometheus sensors
-- hosts: cluster
+- hosts: all
   any_errors_fatal: true
   become: no
   gather_facts: no
