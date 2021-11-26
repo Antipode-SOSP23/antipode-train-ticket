@@ -34,6 +34,7 @@ sudo apt-get install -y --no-install-recommends \
     less \
     vim \
     htop \
+    iftop \
     tree \
     ;
 
