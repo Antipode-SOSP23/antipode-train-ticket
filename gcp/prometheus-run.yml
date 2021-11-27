@@ -1,5 +1,5 @@
 ---
-- hosts: cluster
+- hosts: all
   gather_facts: no
   become: no
   any_errors_fatal: true
@@ -7,8 +7,9 @@
   tasks:
     - name: Initialize Node Exporter
       shell:
-        killall nodeexporter;
-        nohup ./node_exporter  &
+        killall node_exporter ;
+        tmux kill-session prometheus_nodeexporter ;
+        tmux new-session -d -s prometheus_nodeexporter "/code/prometheus/node_exporter"
       args:
         chdir: '/code/prometheus'
         executable: /bin/bash

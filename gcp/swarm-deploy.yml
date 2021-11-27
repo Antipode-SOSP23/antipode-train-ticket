@@ -66,15 +66,11 @@
   become: no
 
   tasks:
-    - name: compute the swarm size
+    - name: Register swarm size
       set_fact:
         swarm_size: "{{ hostvars[inventory_hostname]['groups']['swarm_manager'] | union(hostvars[inventory_hostname]['groups']['cluster']) | union(hostvars[inventory_hostname]['groups']['clients']) | unique | length  }}"
 
-    - name: print swarm size
-      debug:
-        var: swarm_size
-
-    - name: Debug - check if all nodes are joined to the swarm
+    - name: Check if all nodes are joined to the swarm
       shell: >
         docker node ls -q | wc -l
       register: swarm_status
