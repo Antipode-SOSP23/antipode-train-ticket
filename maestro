@@ -18,7 +18,7 @@ def _gcp_vm_create(zone, config):
   compute = googleapiclient.discovery.build('compute', 'v1')
   try:
     compute.instances().insert(project=GCP_PROJECT_ID, zone=zone, body=config).execute()
-    return _gcp_vm_get(zone=zone, name=config['name'])
+    return _gcp_vm_wait_for_status(zone, config['name'], 'RUNNING')
   except googleapiclient.errors.HttpError as e:
     error_info = json.loads(e.args[1])['error']
     if error_info['code'] == 409 and error_info['errors'][0]['reason'] == 'alreadyExists':
@@ -32,13 +32,10 @@ def _gcp_vm_create(zone, config):
 # Status available:
 #   PROVISIONING, STAGING, RUNNING, STOPPING, SUSPENDING, SUSPENDED, REPAIRING, TERMINATED
 def _gcp_vm_wait_for_status(zone, name, status):
-  import googleapiclient.discovery
-
-  compute = googleapiclient.discovery.build('compute', 'v1')
   while True:
     r = _gcp_vm_get(zone=zone, name=name)
     if r['status'] == status.upper():
-      return
+      return r
 
 def _gcp_vm_get(zone, name):
   import googleapiclient.discovery
@@ -71,6 +68,21 @@ def _gcp_vm_delete(zone, name):
     if error_info['code'] == 404:
       return
     else:
+      raise(e)
+
+def _gcp_vm_start(zone, name):
+  import googleapiclient.discovery
+  import json
+
+  compute = googleapiclient.discovery.build('compute', 'v1')
+  while True:
+    try:
+      # start the vm if not running
+      compute.instances().start(project=GCP_PROJECT_ID, zone=zone, instance=name).execute()
+      # wait for delete to be completed
+      return _gcp_vm_wait_for_status(zone, name, 'RUNNING')
+    except googleapiclient.errors.HttpError as e:
+      error_info = json.loads(e.args[1])['error']
       raise(e)
 
 
@@ -269,9 +281,7 @@ def build__gcp(args):
     },
   }
   r = _gcp_vm_create(zone, config)
-  # start the vm if not running
-  compute.instances().start(project=GCP_PROJECT_ID, zone=zone, instance=r['id']).execute()
-  _gcp_vm_wait_for_status(zone, r['id'], 'RUNNING')
+  _gcp_vm_start(zone, r['id'])
   time.sleep(10) # extra time to avoid ssh errors
 
   # In order to get the .ssh folder
