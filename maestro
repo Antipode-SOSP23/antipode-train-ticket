@@ -388,9 +388,8 @@ def deploy__gcp(args):
   # Set external network driver
   compose['networks'][DOCKER_COMPOSE_NETWORK]['external'] = { 'name': DOCKER_COMPOSE_NETWORK }
 
-  # replace swarm info onto existing docker-compose
+  # replace the deploy host constraints
   for service, node_id in config['services'].items():
-    # replace the deploy constraints
     sinfo = compose['services'][service]
     if 'deploy' not in sinfo: sinfo['deploy'] = {}
     if 'placement' not in sinfo['deploy']: sinfo['deploy']['placement'] = {}
@@ -401,10 +400,20 @@ def deploy__gcp(args):
     # replace hostname constraint
     deploy_constraints.insert(hostname_index, f"node.hostname == {node_id}")
 
+  # replace container images
   for _, service_info in compose['services'].items():
     if 'image' in service_info:
       if '${NAMESPACE}' in service_info['image']:
         service_info['image'] = service_info['image'].replace('${NAMESPACE}', GCP_DOCKER_IMAGE_NAMESPACE).replace('${TAG}', GCP_DOCKER_IMAGE_TAG)
+
+  # replace JVM opts in exclusive allocated nodes
+  for node,services in _reverse_dict(config['services']).items():
+    # filter services that have JAVA_OPTS
+    services = [ s for s in services if 'environment' in compose['services'][s] and 'JAVA_OPTS' in compose['services'][s]['environment']]
+
+    # if only 1 service with JAVA_OPTS in the host, then we can optimize JVM opts
+    if len(services) < 2:
+      compose['services'][services[0]]['environment']['JAVA_OPTS'] += ' '.join(GCP_INSTANCE_TO_JAVA_OPTS[config['nodes'][node]['machine_type']])
 
   # now write the new compose into a new file
   _dump_yaml(deploy_path / 'docker-compose.yml', compose)
@@ -1244,6 +1253,14 @@ def _load_inventory(filepath):
 
   return loaded_inventory
 
+def _reverse_dict(d):
+  rev = {}
+  for k,v in d.items():
+    if v not in rev:
+      rev[v] = []
+    rev[v].append(k)
+  return rev
+
 
 #--------------
 # CONSTANTS
@@ -1268,6 +1285,21 @@ GCP_MACHINE_IMAGE_NAME = 'antipode-tt'
 GCP_MACHINE_IMAGE_LINK = f"https://www.googleapis.com/compute/v1/projects/{GCP_PROJECT_ID}/global/images/{GCP_MACHINE_IMAGE_NAME}"
 GCP_SWARM_MANAGER_NAME = 'manager-tt'
 GCP_SWARM_STACK_NAME = 'train-ticket'
+GCP_INSTANCE_TO_JAVA_OPTS = {
+  "e2-standard-4": [
+    "-Xms5g", # 30% of 16Gb
+    "-XX:ParallelGCThreads=4",
+    "-XX:ConcGCThreads=4",
+    "-XX:MaxGCPauseMillis=100",
+  ],
+  "e2-standard-8": [
+    "-Xms10g", # 30% of 32Gb
+    # "-Xmx13500M",
+    "-XX:ParallelGCThreads=8",
+    "-XX:ConcGCThreads=8",
+    "-XX:MaxGCPauseMillis=100"
+  ],
+}
 
 
 #--------------
