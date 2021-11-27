@@ -5,6 +5,19 @@
   any_errors_fatal: true
 
   tasks:
+
+    - name: Create deploy folder
+      file:
+        path: /code/deploy/
+        state: directory
+
+    - name: Upload deploy folder
+      synchronize:
+        src: "{{ deploy_path }}/"
+        dest: /code/deploy
+        use_ssh_args: yes
+        mode: push
+
     - name: Run train-ticket stack
       shell: >
         docker stack deploy --with-registry-auth --compose-file /code/deploy/docker-compose.yml train-ticket

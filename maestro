@@ -563,12 +563,6 @@ def deploy__gcp(args):
       '-e', f"swarm_overlay_network={DOCKER_COMPOSE_NETWORK}",
     ] & FG
 
-    # deploy train ticket
-    ansible_playbook['tt-deploy.yml',
-      '-i', inventory_filepath,
-      '-e', f"deploy_path={deploy_path}",
-    ] & FG
-
 
 #--------------
 # RUN
@@ -625,7 +619,9 @@ def run__gcp(args):
 
   # start train ticket services
   with local.cwd(ROOT_PATH / 'gcp'):
-    ansible_playbook['tt-run.yml', '-i', inventory_filepath,
+    ansible_playbook['tt-run.yml',
+      '-i', inventory_filepath,
+      '-e', f"deploy_path={deploy_path}",
       '-e', f"dashboard_url={_service_public_endpoint('gcp', 'ts-ui-dashboard')}",
       '-e', f"auth_url={_service_public_endpoint('gcp', 'ts-auth-service')}",
       '-e', f"order_url={_service_public_endpoint('gcp', 'ts-order-service')}",
