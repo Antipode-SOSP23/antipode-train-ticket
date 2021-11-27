@@ -111,12 +111,15 @@ def info(args):
     getattr(sys.modules[__name__], f"info__{args['deploy_type']}")(args)
 
 def info__local(args):
+  tag = _get_last('local', 'deploy_tag')
+  deploy_path = ROOT / 'deploy' / tag
+
   if args['ps']:
     from plumbum import local, FG
     from plumbum.cmd import docker_compose
 
     with local.cwd(APP_PATH):
-      docker_compose['-f', DOCKER_COMPOSE_FILE, 'ps'] & FG
+      docker_compose['-f', deploy_path / 'docker-compose.yml', 'ps'] & FG
 
   if args['logs']:
     from plumbum import local, FG
@@ -124,12 +127,11 @@ def info__local(args):
 
     # service from train ticket
     if args['logs'] in SERVICES:
-      compose_args = ['-f', APP_PATH / DOCKER_COMPOSE_FILE, 'logs']
+      compose_args = ['-f', deploy_path / 'docker-compose.yml', 'logs']
       if args['follow']: compose_args += ['--follow']
       compose_args += ['--tail=1000', args['logs']]
     elif args['logs'].startswith('worker') or args['logs'] == 'master':
-      tag = _get_last('local', 'deploy_tag')
-      compose_args = ['-f', ROOT_PATH / 'deploy' / tag / 'docker-compose-locust.yml', 'logs']
+      compose_args = ['-f', deploy_path / 'docker-compose-locust.yml', 'logs']
       if args['follow']: compose_args += ['--follow']
       compose_args += ['--tail=1000', args['logs']]
 
@@ -381,7 +383,7 @@ def deploy__gcp(args):
   os.makedirs(deploy_path, exist_ok=True)
 
   # load the config and the local compose
-  compose = _load_yaml(DOCKER_COMPOSE_FILE)
+  compose = _load_yaml(APP_PATH / 'docker-compose.yml')
   config = _load_yaml(args['config'])
   _set_last('gcp', 'deploy_config', args['config'])
 
@@ -596,7 +598,7 @@ def run__local(args):
   os.makedirs(deploy_path, exist_ok=True)
 
   # load existing docker-compose
-  compose = _load_yaml(DOCKER_COMPOSE_FILE)
+  compose = _load_yaml(APP_PATH / 'docker-compose.yml')
 
   # edit the amount of delay in the docker-compose file
   if args['drawback_delay'] > 0:
@@ -684,7 +686,8 @@ def clean__local(args):
       docker_compose['-f', 'docker-compose-seed.yml', 'down', '--rmi', 'local', '-v'] & FG
 
   with local.cwd(APP_PATH):
-    docker_compose['-f', DOCKER_COMPOSE_FILE, 'down'] & FG
+    if (deploy_path / 'docker-compose.yml').exists():
+      docker_compose['-f', deploy_path / 'docker-compose.yml', 'down'] & FG
     # cleaning system because train consumes a lot of memory/disk
     docker['system', 'prune', '--volumes', '-f'] & FG
 
@@ -1141,13 +1144,13 @@ def ssh__gcp(args):
 def _services():
   import yaml
 
-  with open(DOCKER_COMPOSE_FILE) as file:
+  with open(APP_PATH / 'docker-compose.yml') as file:
     return list(yaml.load(file, Loader=yaml.FullLoader)['services'].keys())
 
 def _services_to_port():
   import yaml
 
-  with open(DOCKER_COMPOSE_FILE) as file:
+  with open(APP_PATH / 'docker-compose.yml') as file:
     return { name:int(d['ports'][0].split(':')[0]) for name,d in yaml.load(file, Loader=yaml.FullLoader)['services'].items() if 'ports' in d }
 
 def _load_yaml(path):
@@ -1304,7 +1307,6 @@ def _reverse_dict(d):
 SCRIPT_NAME = __file__.rsplit("/", 1)[1].split('.')[0]
 ROOT_PATH = Path(os.path.abspath(os.path.dirname(sys.argv[0])))
 APP_PATH = ROOT_PATH / 'train-ticket'
-DOCKER_COMPOSE_FILE = APP_PATH / 'docker-compose.yml'
 DOCKER_COMPOSE_NETWORK = 'my-network'
 SERVICES = _services()
 SERVICES_TO_PORT = _services_to_port()
