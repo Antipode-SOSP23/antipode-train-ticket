@@ -1060,6 +1060,37 @@ def wkld__gcp(args):
 
 
 #--------------
+# SSH
+#--------------
+def ssh(args):
+  getattr(sys.modules[__name__], f"ssh__{args.pop('deploy_type')}")(args)
+  print("[INFO] SSH done!")
+
+def ssh__local(args):
+  return
+
+def ssh__gcp(args):
+  from plumbum import FG
+  from plumbum.cmd import xpanes, ssh
+
+  tag = _get_last('gcp', 'deploy_tag')
+  deploy_path = ROOT_PATH / 'deploy' / tag
+  inventory_filepath = deploy_path / 'inventory.cfg'
+  inventory = _load_inventory(inventory_filepath)
+  ssh_key = ROOT_PATH / 'gcp' / '.ssh' / 'google_compute_engine'
+
+  xpanes_args = ['xpanes', '-c', f"'ssh -o StrictHostKeyChecking=no -i {ssh_key} root@{{}}'"]
+  for h in args['hosts']:
+    if h not in inventory:
+      print(f"[WARN] Skipping '{h}' - not found in inventory")
+    # get the public ip
+    xpanes_args.append(inventory[h]['external_ip'])
+
+  # plumbum does not work hence
+  os.system(' '.join(xpanes_args))
+
+
+#--------------
 # HELPERS
 #--------------
 def _services():
@@ -1285,6 +1316,10 @@ if __name__ == '__main__':
   wkld_parser.add_argument('-t', '--threads', type=int, default=1, help="Number of threads")
   wkld_parser.add_argument('-d', '--duration', type=int, default=1, help="Duration in seconds")
   wkld_parser.add_argument('-r', '--rate', type=int, default=999999, help="Work rate (throughput) in request per second")
+
+  # ssh
+  ssh_parser = subparsers.add_parser('ssh', help='SSH into machines')
+  ssh_parser.add_argument('-hosts', required=True, nargs='+', help="Connect to nodes based on id")
 
   # parse args
   args = vars(main_parser.parse_args())
