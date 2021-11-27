@@ -57,7 +57,8 @@
         docker stack ps --format {% raw %}"{{.ID}}|{{.CurrentState}}"{% endraw %} locust | grep "Complete" | wc -l
       register: completed_locust
       retries: 8
-      delay: "{{ duration // 4 }}"
+      # we do more retries but with a quarter of the duration delay in between
+      delay: "{{ (duration | int) // 4 }}"
       # compare number of services spawned with number of services that are up (1/1 replica state)
       until: (completed_locust.stdout | int) == ((num_workers | int) + 1)
 

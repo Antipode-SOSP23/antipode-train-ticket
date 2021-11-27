@@ -51,7 +51,11 @@
       shell: >
         docker stack ps --format {% raw %}"{{.ID}}|{{.CurrentState}}"{% endraw %} seed | grep "Complete" | wc -l
       register: completed_seeds
-      retries: 40
+      # 1 retry is worht 1 minute
+      # (from observation) 420 orders created in 1 minute
+      # we divide the total number of seeds by that factor
+      # we add 5 minutes (retries) just in case
+      retries: "{{ ((seed_size | int) // 420) + 5 }}"
       delay: 60
       # compare number of services spawned with number of services that are up (1/1 replica state)
       until: (completed_seeds.stdout | int) == (num_workers | int)
