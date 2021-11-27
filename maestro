@@ -678,8 +678,10 @@ def clean__local(args):
   # run locust and remove containers
   with local.cwd(deploy_path):
     # remove and clean containers
-    docker_compose['-f', 'docker-compose-locust.yml', 'down', '--rmi', 'local', '-v'] & FG
-    docker_compose['-f', 'docker-compose-seed.yml', 'down', '--rmi', 'local', '-v'] & FG
+    if Path('docker-compose-locust.yml').exists():
+      docker_compose['-f', 'docker-compose-locust.yml', 'down', '--rmi', 'local', '-v'] & FG
+    if Path('docker-compose-seed.yml').exists():
+      docker_compose['-f', 'docker-compose-seed.yml', 'down', '--rmi', 'local', '-v'] & FG
 
   with local.cwd(APP_PATH):
     docker_compose['-f', DOCKER_COMPOSE_FILE, 'down'] & FG
