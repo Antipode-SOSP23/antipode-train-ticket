@@ -47,30 +47,23 @@
       register: out
       failed_when: "not(out.rc == 0) or 'fail' in out.stderr"
 
-    - name: Wait for seed to complete
-      shell: >
-        docker stack ps --format {% raw %}"{{.ID}}|{{.CurrentState}}"{% endraw %} seed | grep "Complete" | wc -l
-      register: completed_seeds
-      # 1 retry is worht 1 minute
-      # (from observation) 420 orders created in 1 minute
-      # we divide the total number of seeds by that factor
-      # we add 5 minutes (retries) just in case
-      retries: "{{ ((seed_size | int) // 420) + 5 }}"
-      delay: 60
-      # compare number of services spawned with number of services that are up (1/1 replica state)
-      until: (completed_seeds.stdout | int) == (num_workers | int)
+    # - name: Wait for seed to complete
+    #   shell: >
+    #     docker stack ps --format {% raw %}"{{.ID}}|{{.CurrentState}}"{% endraw %} seed | grep "Complete" | wc -l
+    #   register: completed_seeds
+    #   # 1 retry is worht 1 minute
+    #   # (from observation) 420 orders created in 1 minute
+    #   # we divide the total number of seeds by that factor
+    #   # we add 5 minutes (retries) just in case
+    #   retries: "{{ ((seed_size | int) // 420) + 5 }}"
+    #   delay: 60
+    #   # compare number of services spawned with number of services that are up (1/1 replica state)
+    #   until: (completed_seeds.stdout | int) == (num_workers | int)
 
     # Since if you run again we remove the stack it does us no harm to keep the stack up so we can look at logs
     # - name: Remove seed stack
     #   shell: >
     #     docker stack rm seed
-
-- hosts: clients
-  gather_facts: no
-  become: no
-  any_errors_fatal: true
-
-  tasks:
 
     - name: Wait until the seed file exists in all clients
       wait_for:
