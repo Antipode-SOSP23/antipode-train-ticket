@@ -259,6 +259,7 @@ def build__gcp(args):
     'disks': [
       {
         'boot': True,
+        'size': '20GB',
         'autoDelete': True,
         'initializeParams': {
           'sourceImage': source_disk_image,
