@@ -17,10 +17,7 @@ fi
 
 # authenticate with gcloud:
 sudo gcloud auth activate-service-account --key-file=/tmp/pluribus.json
-sudo gcloud auth configure-docker
-
-# Allow ssh root login
-sudo sed -i 's/PermitRootLogin no/PermitRootLogin yes/g' /etc/ssh/sshd_config
+sudo gcloud auth -q configure-docker
 
 # pull public images
 sudo docker pull rabbitmq:management
@@ -36,8 +33,18 @@ sudo apt-get install -y --no-install-recommends \
     htop \
     iftop \
     tree \
+    tmux \
     ;
 
 # Clean image
 sudo apt-get clean
 sudo apt-get autoclean
+
+# Allow ssh root login
+sudo sed -i 's/PermitRootLogin no/PermitRootLogin yes/g' /etc/ssh/sshd_config
+
+# Disable Nagle's Algorithm
+sudo sysctl -w net.ipv4.tcp_syncookies=1
+sudo sysctl -w net.ipv4.tcp_synack_retries=1
+sudo sysctl -w net.ipv4.tcp_syn_retries=1
+sudo sysctl -w net.core.somaxconn=4096
