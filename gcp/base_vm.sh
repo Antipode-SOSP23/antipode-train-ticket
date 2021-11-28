@@ -32,6 +32,7 @@ sudo apt-get install -y --no-install-recommends \
     vim \
     htop \
     iftop \
+    nload \
     tree \
     tmux \
     ;
