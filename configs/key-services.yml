@@ -2,11 +2,19 @@ clients:
   client01:
     hostname: client01.tt
     zone: us-central1-a
-    machine_type: e2-standard-2
+    machine_type: e2-small
   client02:
     hostname: client02.tt
     zone: us-central1-a
-    machine_type: e2-standard-2
+    machine_type: e2-small
+  client03:
+    hostname: client03.tt
+    zone: us-central1-a
+    machine_type: e2-small
+  client04:
+    hostname: client04.tt
+    zone: us-central1-a
+    machine_type: e2-small
 
 manager:
   name: manager-tt
