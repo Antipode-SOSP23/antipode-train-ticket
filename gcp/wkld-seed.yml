@@ -18,6 +18,11 @@
         dest: /code/wkld/seed.py
         mode: u=rwx,g=r,o=xr
 
+    - name: Remove existing seed files
+      file:
+        path: "/code/wkld/{{ deploy_tag }}_seed.yml"
+        state: absent
+
 - hosts: swarm_manager
   gather_facts: no
   become: no
@@ -65,9 +70,18 @@
     #   shell: >
     #     docker stack rm seed
 
+- hosts: clients
+  gather_facts: no
+  become: no
+  any_errors_fatal: true
+
+  tasks:
+
     - name: Wait until the seed file exists in all clients
       wait_for:
         path: "/code/wkld/{{ deploy_tag }}_seed.yml"
+        # sleep: 10
+        timeout: "{{ (((seed_size | int) // 420) + 5) * 60 }}"
 
     - name: Register available seeds to complete
       shell: >
