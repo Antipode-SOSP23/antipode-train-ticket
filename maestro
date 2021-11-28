@@ -748,7 +748,7 @@ def clean__gcp(args):
 #--------------
 def wkld(args):
   drawback_delay = _get_last(args['deploy_type'], 'drawback_delay')
-  if drawback_delay is not None:
+  if drawback_delay is not None and drawback_delay > 0:
     print(f"[INFO] Drawback delay found: increasing wkld duration by {drawback_delay}s")
     args['duration'] += drawback_delay
 
