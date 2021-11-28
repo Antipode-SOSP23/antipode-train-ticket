@@ -61,7 +61,7 @@ def create_order_and_pay(args):
       "price": str(100.0),
       "status": 0, # NOT PAID
     }
-    r = requests.post(create_order_url, headers=headers, json=order_params, timeout=5)
+    r = requests.post(create_order_url, headers=headers, json=order_params)
     if r.status_code != 200 or r.json() is None:
       print("[ERROR] Failed to create order")
       return None
@@ -69,18 +69,22 @@ def create_order_and_pay(args):
     order_id = r.json()['data']['id']
 
     # Pay order
-    pay_params = {
-      "userId": user_id,
-      "orderId": order_id,
-      "tripId": order_params['trainNumber'],
-      "price": order_params['price'],
-    }
-    r = requests.post(pay_order_url, headers=headers, json=pay_params, timeout=5)
-    if r.status_code != 200 or r.json() is None:
-      print("[ERROR] Failed to pay order")
-      return None
+    while True:
+      pay_params = {
+        "userId": user_id,
+        "orderId": order_id,
+        "tripId": order_params['trainNumber'],
+        "price": order_params['price'],
+      }
+      r = requests.post(pay_order_url, headers=headers, json=pay_params)
+      if r.status_code != 200 or r.json() is None:
+        print("[ERROR] Failed to pay order")
+        return None
 
-    return order_id
+      # only return if status is okay to pay - due to delay
+      if r.json()['status'] == 1:
+        return order_id
+
   except (requests.exceptions.ConnectionError, requests.exceptions.ReadTimeout) as e:
     print("[ERROR] Failed to create and pay order")
     return None
