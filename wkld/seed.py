@@ -85,6 +85,9 @@ def create_order_and_pay(args):
       if r.json()['status'] == 1:
         return order_id
 
+      # if we need to retry the pay we add a sleep
+      time.sleep(0.5)
+
   except (requests.exceptions.ConnectionError, requests.exceptions.ReadTimeout) as e:
     print("[ERROR] Failed to create and pay order")
     return None
