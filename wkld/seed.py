@@ -88,7 +88,7 @@ def create_order_and_pay(args):
 user_id, auth_token = auth_user()
 
 order_ids = []
-with multiprocessing.Pool(processes=multiprocessing.cpu_count()*2) as p:
+with multiprocessing.Pool(processes=multiprocessing.cpu_count()*4) as p:
   args_range = [ (user_id,auth_token) for i in range(SEED_SIZE) ]
   for i,order_id in enumerate(p.imap_unordered(create_order_and_pay, args_range)):
     order_ids.append(order_id)
