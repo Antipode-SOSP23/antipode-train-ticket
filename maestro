@@ -425,6 +425,34 @@ def deploy__gcp(args):
     if len(services) < 2:
       compose['services'][services[0]]['environment']['JAVA_OPTS'] += ' '.join(GCP_INSTANCE_TO_JAVA_OPTS[config['nodes'][node]['machine_type']])
 
+  # move all mongo instances to memory
+  for m in [ n for n,s in compose['services'].items() if s['image'] == 'mongo' ]:
+    service = compose['services'][m]
+    service['command'] = ' '.join([
+      # to avoid "slow query" messages
+      "--slowms 999999",
+      # for an in-memory database
+      # ref: https://docs.mongodb.com/manual/reference/program/mongod/#std-option-mongod.--dbpath
+      "--dbpath /ramdata",
+      # `--syncdelay`: longer syncs with disk
+      # ref: https://docs.mongodb.com/manual/reference/parameters/#mongodb-parameter-param.syncdelay
+      "--syncdelay 0",
+      # interval between syncs from memory to disk
+      # https://docs.mongodb.com/manual/reference/program/mongod/#std-option-mongod.--journalCommitInterval
+      "--journalCommitInterval 500",
+      # "--wiredTigerCacheSizeGB 1",
+    ])
+    # volume for in-memory db
+    if 'volumes' not in service:
+      service['volumes'] = []
+    service['volumes'].append({
+      'type': 'tmpfs',
+      'target': '/ramdata',
+      'tmpfs': {
+        'size': 3000000000,
+      },
+    })
+
   # now write the new compose into a new file
   _dump_yaml(deploy_path / 'docker-compose.yml', compose)
   print(f"[SAVED] '{deploy_path / 'docker-compose.yml'}'")
@@ -611,6 +639,34 @@ def run__local(args):
   # edit the amount of delay in the docker-compose file
   if args['drawback_delay'] > 0:
     compose['services']['ts-cancel-service']['environment']['DELAY_DRAWBACK_SEC'] = args['drawback_delay']
+
+  # move all mongo instances to memory
+  for m in [ n for n,s in compose['services'].items() if s['image'] == 'mongo' ]:
+    service = compose['services'][m]
+    service['command'] = ' '.join([
+      # to avoid "slow query" messages
+      "--slowms 999999",
+      # for an in-memory database
+      # ref: https://docs.mongodb.com/manual/reference/program/mongod/#std-option-mongod.--dbpath
+      "--dbpath /ramdata",
+      # `--syncdelay`: longer syncs with disk
+      # ref: https://docs.mongodb.com/manual/reference/parameters/#mongodb-parameter-param.syncdelay
+      "--syncdelay 0",
+      # interval between syncs from memory to disk
+      # https://docs.mongodb.com/manual/reference/program/mongod/#std-option-mongod.--journalCommitInterval
+      "--journalCommitInterval 500",
+      # "--wiredTigerCacheSizeGB 1",
+    ])
+    # volume for in-memory db
+    if 'volumes' not in service:
+      service['volumes'] = []
+    service['volumes'].append({
+      'type': 'tmpfs',
+      'target': '/ramdata',
+      'tmpfs': {
+        'size': 3000000000,
+      },
+    })
 
   # save (changed) docker-compose
   docker_compose_filepath = deploy_path / 'docker-compose.yml'
