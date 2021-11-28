@@ -8,7 +8,7 @@
     - name: Initialize Node Exporter
       shell:
         killall node_exporter ;
-        tmux kill-session prometheus_nodeexporter ;
+        tmux kill-session -t prometheus_nodeexporter ;
         tmux new-session -d -s prometheus_nodeexporter "/code/prometheus/node_exporter"
       args:
         chdir: '/code/prometheus'

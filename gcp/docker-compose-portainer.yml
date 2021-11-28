@@ -24,7 +24,11 @@ services:
 
   portainer:
     image: portainer/portainer-ce
-    command: -H tcp://tasks.agent:9001 --tlsskipverify
+    command: -H tcp://tasks.agent:9001 --tlsskipverify --admin-password=${PORTAINER_PASSWORD_HASH}
+    environment:
+      # To generate a new password hash:
+      # docker run --rm httpd:2.4-alpine htpasswd -nbB admin "antipode"
+      PORTAINER_PASSWORD_HASH: $$2y$$05$$L912su0SNkU458ME1MyZauD4UFwEli69pIEQU/bYkla6Xc.WT8u3e
     ports:
       - "9000:9000"
       - "8000:8000"
