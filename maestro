@@ -643,6 +643,7 @@ def run__gcp(args):
   deploy_path = ROOT_PATH / 'deploy' / tag
   inventory_filepath = deploy_path / 'inventory.cfg'
   inventory = _load_inventory(inventory_filepath)
+  compose = _load_yaml(deploy_path / 'docker-compose.yml')
 
   # run playbooks
   if args['prometheus']:
@@ -657,6 +658,14 @@ def run__gcp(args):
     with local.cwd(ROOT_PATH / 'gcp'):
       ansible_playbook['portainer-run.yml', '-i', inventory_filepath] & FG
       _wait_url_up(f"http://{inventory[GCP_SWARM_MANAGER_NAME]['external_ip']}:9000")
+
+  if args['drawback_delay'] > 0:
+    compose['services']['ts-cancel-service']['environment']['DELAY_DRAWBACK_SEC'] = args['drawback_delay']
+
+  # save (changed) docker-compose
+  docker_compose_filepath = deploy_path / 'docker-compose.yml'
+  _dump_yaml(docker_compose_filepath, compose)
+  print(f"[SAVED] '{docker_compose_filepath}'")
 
   # start train ticket services
   with local.cwd(ROOT_PATH / 'gcp'):
