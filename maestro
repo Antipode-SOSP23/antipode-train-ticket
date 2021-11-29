@@ -974,6 +974,13 @@ def wkld__local(args):
 
   workers = [ { 'id': f"worker{i}"} for i in range(args['clients']) ]
 
+  # split existing order ids per the number of clients
+  order_ids = _index_orders('local')
+  for worker,oids in zip(workers, _split_list(order_ids, len(workers))):
+    oids_yaml_filepath = deploy_path / f"{tag}_seed_{worker['id']}.yml"
+    _dump_yaml(oids_yaml_filepath, oids)
+    print(f"[SAVED] '{oids_yaml_filepath}'")
+
   # copy locust files to deploy folder
   shutil.copy(ROOT_PATH / 'wkld' / 'locustfile.py', deploy_path)
 
