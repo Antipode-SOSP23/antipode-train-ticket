@@ -218,7 +218,7 @@ def build__local(args):
       'maven:3-openjdk-8-slim',
       'mvn']
     mvn['clean', 'package', '-Dmaven.test.skip=true'] & FG
-    time.sleep(1) # wait in between commands due to jar generation delay??
+    time.sleep(2) # wait in between commands due to jar generation delay??
     docker_compose['build'] & FG
 
   # build locust image
