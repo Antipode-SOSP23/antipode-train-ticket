@@ -958,12 +958,11 @@ def seed__gcp(args):
     nodes_with_seeds[service_name] = {
       'collections': service_details['collections'],
       'hostname': config['nodes'][config['services'][service_name]]['hostname'],
-      'dump_path': ROOT_PATH / 'wkld' / f"{service_name}.dump.tgz"
     }
 
   # by default we restore from latest dump
   if not args['norestore']:
-    # dynamically build docker-compose for client seeds
+    # dynamically build playbook for nodes with seeds
     template = """
       ---
       {% for service_name,service_details in nodes_with_seeds.items() %}
@@ -973,15 +972,15 @@ def seed__gcp(args):
         any_errors_fatal: true
 
         tasks:
-          - name: Ensures seed dir exists
+          - name: Ensures wkld dir exists
             file:
               path: /code/wkld
               state: directory
               mode: u=rwx,g=rw,o=xrw
 
-          - name: Copy dump file
+          - name: Upload dump file to remote
             copy:
-              src: {{ service_details['dump_path'] }}
+              src: {{ wkld_path }}/{{ service_name }}.dump.tgz"
               dest: /code/wkld/
               mode: u=rwx,g=r,o=xr
 
@@ -1005,6 +1004,7 @@ def seed__gcp(args):
       {% endfor %}
     """
     template_render = Environment().from_string(template).render({
+      'wkld_path': ROOT_PATH / 'wkld',
       'nodes_with_seeds': nodes_with_seeds,
     })
     restore_playbook_filepath = deploy_path / 'seed-restore.yml'
@@ -1097,8 +1097,73 @@ def seed__gcp(args):
       '-e', f"num_workers={len(clients_inventory)}",
     ] & FG
 
-        # now copy dumped files to the wkld dir
-        shutil.copy(deploy_path / f"{tag}_{service_name}.dump.tgz", ROOT_PATH / 'wkld' / f"{service_name}.dump.tgz")
+  # check if experiment was cleaned and if not we ask the user if he wants to continue
+  if click.confirm('[WARN] Do you wish to replace existing seed file with dumped version?', default=True):
+    # dynamically build playbook for nodes with seeds
+    template = """
+      ---
+      {% for service_name,service_details in nodes_with_seeds.items() %}
+      - hosts: {{ service_details['hostname'] }}
+        gather_facts: no
+        become: no
+        any_errors_fatal: true
+
+        tasks:
+          - name: Ensures wkld dir exists
+            file:
+              path: /code/wkld
+              state: directory
+              mode: u=rwx,g=rw,o=xrw
+
+          - name: Register container id
+            shell: >
+              docker ps -q -f name={{ service_name }}
+            register: container_id
+
+          - name: Print container id
+            debug:
+              msg: "{% raw %}{{ container_id.stdout }}{% endraw %}"
+
+          {% for collection in service_details['collections'] %}
+          - name: Reindex {{ collection }} collection before dump
+            shell: >
+              docker exec {% raw %}{{ container_id.stdout }}{% endraw %} mongo ts --eval='db.{{ collection }}.reIndex()'
+          {% endfor %}
+
+          - name: Dump to file
+            shell: >
+              docker exec {% raw %}{{ container_id.stdout }}{% endraw %} mongodump --db=ts --gzip --archive=/tmp/{{ deploy_tag }}_{{ service_name }}.dump.tgz
+
+          - name: Copy dump from container
+            shell: >
+              docker cp {% raw %}{{ container_id.stdout }}{% endraw %}:/tmp/{{ deploy_tag }}_{{ service_name }}.dump.tgz /code/wkld/{{ deploy_tag }}_{{ service_name }}.dump.tgz
+
+          - name: Download dump to host
+            # run_once: true
+            synchronize:
+              src: "/code/wkld/{{ deploy_tag }}_{{ service_name }}.dump.tgz"
+              dest: "{{ wkld_path }}/{{ service_name }}.dump.tgz"
+              mode: pull
+              use_ssh_args: yes
+              archive: no
+
+      {% endfor %}
+    """
+    template_render = Environment().from_string(template).render({
+      'wkld_path': ROOT_PATH / 'wkld',
+      'deploy_tag': tag,
+      'nodes_with_seeds': nodes_with_seeds,
+    })
+    dump_playbook_filepath = deploy_path / 'seed-dump.yml'
+    with open(dump_playbook_filepath, 'w') as f:
+      # remove empty lines and dedent for easier read
+      f.write(textwrap.dedent(template_render))
+    print(f"[SAVED] '{dump_playbook_filepath}'")
+
+    with local.cwd(deploy_path):
+      ansible_playbook['seed-dump.yml',
+        '-i', deploy_path / 'inventory.cfg',
+      ] & FG
 
 
 #--------------
