@@ -811,32 +811,42 @@ def seed__local(args):
   from jinja2 import Environment
   import textwrap
   from plumbum import local, FG
-  from plumbum.cmd import docker_compose
+  from plumbum.cmd import docker_compose, docker
   import click
 
   # tag for this deployment
   tag = _get_last('local', 'deploy_tag')
   deploy_path = ROOT_PATH / 'deploy' / tag
 
+  # by default we restore from latest dump
+  if not args['norestore']:
+    # restore datastores dumps
+    with local.cwd(deploy_path):
+      for service_name in SEED_MONGO_INSTANCES:
+        # get container id
+        container_id = docker_compose[
+          '--project-directory', APP_PATH,
+          '-f', deploy_path / 'docker-compose.yml',
+          'ps', '-q', service_name
+        ]().rstrip()
+        # copy file to container
+        docker['cp',
+          ROOT_PATH / 'wkld' / f"{service_name}.dump.tgz",
+          f"{container_id}:/tmp/"
+        ] & FG
+        # restore dump
+        docker_compose[
+          '--project-directory', APP_PATH,
+          '-f', deploy_path / 'docker-compose.yml',
+          'exec', service_name,
+          'mongorestore', '--nsInclude=ts.*', '--drop', '--gzip', f"--archive=/tmp/{service_name}.dump.tgz",
+        ] & FG
+
   # build workers info
   workers = [ { 'id': f"worker{i}"} for i in range(args['clients']) ]
 
   # copy seed file to deploy folder
   shutil.copy(ROOT_PATH / 'wkld' / 'seed.py', deploy_path)
-
-  # add volume to docker-compose seed mongo instances
-  compose = _load_yaml(deploy_path / 'docker-compose.yml')
-  for service_name in SEED_MONGO_INSTANCES:
-    service = compose['services'][service_name]
-    if 'volumes' not in service:
-      service['volumes'] = []
-    service['volumes'].append(f"{deploy_path}:/mnt/deploy")
-    # remove duplicated values
-    service['volumes'] = list(set(service['volumes']))
-
-  # save updated version
-  _dump_yaml(deploy_path / 'docker-compose.yml', compose)
-  print(f"[SAVED] '{deploy_path / 'docker-compose.yml'}'")
 
   # dynamically build docker-compose for client seeds
   template = """
@@ -881,22 +891,37 @@ def seed__local(args):
 
   # run seed
   with local.cwd(deploy_path):
-    # docker_compose['-f', f"{docker_compose_filepath}", 'up'] & FG
-    # remove and clean containers
-    # docker_compose['-f', f"{docker_compose_filepath}", 'down', '--rmi', 'local', '-v'] & FG
-    None
+    docker_compose['-f', f"{docker_compose_filepath}", 'up'] & FG
 
   # check if experiment was cleaned and if not we ask the user if he wants to continue
   if click.confirm('[WARN] Do you wish to replace existing seed file with dumped version?', default=True):
     with local.cwd(deploy_path):
       # mongodump for selected databases
       for service_name in SEED_MONGO_INSTANCES:
+        dump_filename = f"{tag}_{service_name}.dump.tgz"
+        # first execture the dump into a file
         docker_compose[
           '--project-directory', APP_PATH,
           '-f', deploy_path / 'docker-compose.yml',
           'exec', service_name,
-          'mongodump', '--gzip', f"--archive=/mnt/deploy/{tag}_{service_name}.dump.tgz",
+          'mongodump', '--db=ts', '--gzip', f"--archive=/tmp/{dump_filename}",
         ] & FG
+        # then get container id where the dump is
+        container_id = docker_compose[
+          '--project-directory', APP_PATH,
+          '-f', deploy_path / 'docker-compose.yml',
+          'ps', '-q', service_name
+        ]().rstrip()
+        # then copy file into local wkld folder
+        docker['cp',
+          f"{container_id}:/tmp/{dump_filename}",
+          ROOT_PATH / 'wkld' / f"{service_name}.dump.tgz"
+        ] & FG
+
+  # remove and clean containers
+  with local.cwd(deploy_path):
+    docker_compose['-f', f"{docker_compose_filepath}", 'down', '--rmi', 'local', '-v'] & FG
+
         # now copy dumped files to the wkld dir
         shutil.copy(deploy_path / f"{tag}_{service_name}.dump.tgz", ROOT_PATH / 'wkld' / f"{service_name}.dump.tgz")
 
@@ -918,12 +943,34 @@ def wkld__local(args):
   from jinja2 import Environment
   import textwrap
   from plumbum import local, FG
-  from plumbum.cmd import docker_compose
+  from plumbum.cmd import docker_compose, docker
   import shutil
 
   # tag for this deployment
   tag = _get_last('local', 'deploy_tag')
   deploy_path = ROOT_PATH / 'deploy' / tag
+
+  # restore datastores dumps
+  with local.cwd(deploy_path):
+    for service_name in SEED_MONGO_INSTANCES:
+      # get container id
+      container_id = docker_compose[
+        '--project-directory', APP_PATH,
+        '-f', deploy_path / 'docker-compose.yml',
+        'ps', '-q', service_name
+      ]().rstrip()
+      # copy file to container
+      docker['cp',
+        ROOT_PATH / 'wkld' / f"{service_name}.dump.tgz",
+        f"{container_id}:/tmp/"
+      ] & FG
+      # restore dump
+      docker_compose[
+        '--project-directory', APP_PATH,
+        '-f', deploy_path / 'docker-compose.yml',
+        'exec', service_name,
+        'mongorestore', '--nsInclude=ts.*', '--drop', '--gzip', f"--archive=/tmp/{service_name}.dump.tgz",
+      ] & FG
 
   workers = [ { 'id': f"worker{i}"} for i in range(args['clients']) ]
 
@@ -1441,6 +1488,7 @@ if __name__ == '__main__':
 
   # seed application
   seed_parser = subparsers.add_parser('seed', help='Seed application')
+  seed_parser.add_argument('-norestore', required=False, action='store_true', help="Do no restore dump before this seed")
   seed_parser.add_argument('-size', required=True, type=int, help="Number of new requests to seed")
   seed_parser.add_argument('-clients', required=True, type=int, help="Number of clients to use for seeding")
 
