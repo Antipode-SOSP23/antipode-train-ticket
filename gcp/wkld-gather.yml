@@ -4,16 +4,6 @@
   any_errors_fatal: true
 
   tasks:
-    - name: Wait for all locust evaluation files to be present
-      wait_for:
-        path: "/code/wkld/{{ item }}"
-      with_items:
-        - "{{ deploy_tag }}.err"
-        - "{{ deploy_tag }}.html"
-        - "{{ deploy_tag }}_exceptions.csv"
-        - "{{ deploy_tag }}_failures.csv"
-        - "{{ deploy_tag }}_stats_history.csv"
-        - "{{ deploy_tag }}_stats.csv"
 
     - name: Register all services names
       shell: >
