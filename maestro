@@ -839,7 +839,7 @@ def seed__local(args):
           '--project-directory', APP_PATH,
           '-f', deploy_path / 'docker-compose.yml',
           'exec', service_name,
-          'mongorestore', '--objcheck', '--nsInclude=ts.*', '--gzip', f"--archive=/tmp/{service_name}.dump.tgz",
+          'mongorestore', '--drop', '--objcheck', '--nsInclude=ts.*', '--gzip', f"--archive=/tmp/{service_name}.dump.tgz",
         ] & FG
 
   # build workers info
@@ -969,7 +969,7 @@ def wkld__local(args):
         '--project-directory', APP_PATH,
         '-f', deploy_path / 'docker-compose.yml',
         'exec', service_name,
-        'mongorestore', '--objcheck', '--nsInclude=ts.*', '--gzip', f"--archive=/tmp/{service_name}.dump.tgz",
+        'mongorestore', '--drop', '--objcheck', '--nsInclude=ts.*', '--gzip', f"--archive=/tmp/{service_name}.dump.tgz",
       ] & FG
 
   workers = [ { 'id': f"worker{i}"} for i in range(args['clients']) ]
