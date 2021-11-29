@@ -835,7 +835,7 @@ def wkld__local(args):
 
     # dynamically build docker-compose for client seeds
     template = """
-      version: '3'
+    version: '3.6'
 
       services:
         {% for worker in workers %}
@@ -885,7 +885,7 @@ def wkld__local(args):
 
   # dynamically build docker-compose for locust
   template = """
-    version: '3'
+    version: '3.6'
 
     services:
       master:
@@ -924,7 +924,7 @@ def wkld__local(args):
           - ./:/mnt/locust
       {% endfor %}
   """
-  inventory = Environment().from_string(template).render({
+  template_render = Environment().from_string(template).render({
     'locust_docker_image_name': LOCUST_DOCKER_IMAGE_NAME,
     #
     'deploy_tag': tag,
@@ -941,7 +941,7 @@ def wkld__local(args):
   docker_compose_filepath = deploy_path / 'docker-compose-locust.yml'
   with open(docker_compose_filepath, 'w') as f:
     # remove empty lines and dedent for easier read
-    f.write(textwrap.dedent(inventory))
+    f.write(textwrap.dedent(template_render))
   print(f"[SAVED] '{docker_compose_filepath}'")
 
   # run locust and remove containers
@@ -1071,7 +1071,7 @@ def wkld__gcp(args):
 
   # dynamically build docker-compose for clients
   template = """
-    version: '3'
+    version: '3.6'
 
     networks:
       {{ docker_compose_network }}:
