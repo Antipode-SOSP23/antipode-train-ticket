@@ -823,27 +823,7 @@ def seed__local(args):
 
   # by default we restore from latest dump
   if not args['norestore']:
-    # restore datastores dumps
-    with local.cwd(deploy_path):
-      for service_name,service_details in SEED_MONGO_INSTANCES.items():
-        # get container id
-        container_id = docker_compose[
-          '--project-directory', APP_PATH,
-          '-f', deploy_path / 'docker-compose.yml',
-          'ps', '-q', service_name
-        ]().rstrip()
-        # copy file to container
-        docker['cp',
-          ROOT_PATH / 'wkld' / f"{service_name}.dump.tgz",
-          f"{container_id}:/tmp/"
-        ] & FG
-        # restore dump
-        docker_compose[
-          '--project-directory', APP_PATH,
-          '-f', deploy_path / 'docker-compose.yml',
-          'exec', service_name,
-          'mongorestore', '--drop', '--objcheck', '--nsInclude=ts.*', '--gzip', f"--archive=/tmp/{service_name}.dump.tgz",
-        ] & FG
+    _restore_seed_dump('local')
 
   # copy seed file to deploy folder
   shutil.copy(ROOT_PATH / 'wkld' / 'seed.py', deploy_path)
@@ -939,8 +919,6 @@ def seed__gcp(args):
   from plumbum import local, FG
   from plumbum.cmd import ansible_playbook
   import click
-  import yaml
-  import json
 
   tag = _get_last('gcp', 'deploy_tag')
   deploy_path = ROOT_PATH / 'deploy' / tag
@@ -953,71 +931,9 @@ def seed__gcp(args):
   # select clients according to wanted run
   clients_inventory = { i:inventory[i] for i in list(config['clients'].keys())[:args['clients']] }
 
-  nodes_with_seeds = {}
-  for service_name,service_details in SEED_MONGO_INSTANCES.items():
-    nodes_with_seeds[service_name] = {
-      'collections': service_details['collections'],
-      'hostname': config['nodes'][config['services'][service_name]]['hostname'],
-    }
-
   # by default we restore from latest dump
   if not args['norestore']:
-    # dynamically build playbook for nodes with seeds
-    template = """
-      ---
-      {% for service_name,service_details in nodes_with_seeds.items() %}
-      - hosts: {{ service_details['hostname'] }}
-        gather_facts: no
-        become: no
-        any_errors_fatal: true
-
-        tasks:
-          - name: Ensures wkld dir exists
-            file:
-              path: /code/wkld
-              state: directory
-              mode: u=rwx,g=rw,o=xrw
-
-          - name: Upload dump file to remote
-            copy:
-              src: {{ wkld_path }}/{{ service_name }}.dump.tgz"
-              dest: /code/wkld/
-              mode: u=rwx,g=r,o=xr
-
-          - name: Register container id
-            shell: >
-              docker ps -q -f name={{ service_name }}
-            register: container_id
-
-          - name: Print container id
-            debug:
-              msg: "{% raw %}{{ container_id.stdout }}{% endraw %}"
-
-          - name: Copy dump file to container
-            shell: >
-              docker cp /code/wkld/{{ service_name }}.dump.tgz {% raw %}{{ container_id.stdout }}{% endraw %}:/tmp/
-
-          - name: Restore dump
-            shell: >
-              docker exec {% raw %}{{ container_id.stdout }}{% endraw %} mongorestore --drop --objcheck --nsInclude=ts.* --gzip --archive=/tmp/{{ service_name }}.dump.tgz
-
-      {% endfor %}
-    """
-    template_render = Environment().from_string(template).render({
-      'wkld_path': ROOT_PATH / 'wkld',
-      'nodes_with_seeds': nodes_with_seeds,
-    })
-    restore_playbook_filepath = deploy_path / 'seed-restore.yml'
-    with open(restore_playbook_filepath, 'w') as f:
-      # remove empty lines and dedent for easier read
-      f.write(textwrap.dedent(template_render))
-    print(f"[SAVED] '{restore_playbook_filepath}'")
-
-    # restore datastores dumps
-    with local.cwd(deploy_path):
-      ansible_playbook['seed-restore.yml',
-        '-i', deploy_path / 'inventory.cfg',
-      ] & FG
+    _restore_seed_dump('gcp')
 
   # copy locust files to deploy folder
   shutil.copy(ROOT_PATH / 'wkld' / 'seed.py', deploy_path)
@@ -1099,6 +1015,13 @@ def seed__gcp(args):
 
   # check if experiment was cleaned and if not we ask the user if he wants to continue
   if click.confirm('[WARN] Do you wish to replace existing seed file with dumped version?', default=True):
+    nodes_with_seeds = {}
+    for service_name,service_details in SEED_MONGO_INSTANCES.items():
+      nodes_with_seeds[service_name] = {
+        'collections': service_details['collections'],
+        'hostname': config['nodes'][config['services'][service_name]]['hostname'],
+      }
+
     # dynamically build playbook for nodes with seeds
     template = """
       ---
@@ -1191,26 +1114,7 @@ def wkld__local(args):
   deploy_path = ROOT_PATH / 'deploy' / tag
 
   # restore datastores dumps
-  with local.cwd(deploy_path):
-    for service_name,service_details in SEED_MONGO_INSTANCES.items():
-      # get container id
-      container_id = docker_compose[
-        '--project-directory', APP_PATH,
-        '-f', deploy_path / 'docker-compose.yml',
-        'ps', '-q', service_name
-      ]().rstrip()
-      # copy file to container
-      docker['cp',
-        ROOT_PATH / 'wkld' / f"{service_name}.dump.tgz",
-        f"{container_id}:/tmp/"
-      ] & FG
-      # restore dump
-      docker_compose[
-        '--project-directory', APP_PATH,
-        '-f', deploy_path / 'docker-compose.yml',
-        'exec', service_name,
-        'mongorestore', '--drop', '--objcheck', '--nsInclude=ts.*', '--gzip', f"--archive=/tmp/{service_name}.dump.tgz",
-      ] & FG
+  _restore_seed_dump('local')
 
   workers = [ { 'id': f"worker{i}"} for i in range(args['clients']) ]
 
@@ -1333,6 +1237,9 @@ def wkld__gcp(args):
     exit(-1)
   # select clients according to wanted run
   clients_inventory = { i:inventory[i] for i in list(config['clients'].keys())[:args['clients']] }
+
+  # always restore latest dump
+  _restore_seed_dump('gcp')
 
   # copy locust file to deploy folder
   shutil.copy(ROOT_PATH / 'wkld' / 'locustfile.py', deploy_path)
@@ -1649,6 +1556,113 @@ def _reverse_dict(d):
       rev[v] = []
     rev[v].append(k)
   return rev
+
+def _restore_seed_dump(deploy_type):
+  getattr(sys.modules[__name__], f"_restore_seed_dump__{deploy_type}")()
+
+def _restore_seed_dump__gcp():
+  from jinja2 import Environment
+  import textwrap
+  from plumbum.cmd import ansible_playbook
+  from plumbum import local, FG
+
+
+  tag = _get_last('gcp', 'deploy_tag')
+  deploy_path = ROOT_PATH / 'deploy' / tag
+  config = _load_yaml(ROOT_PATH / _get_last('gcp', 'deploy_config'))
+
+  nodes_with_seeds = {}
+  for service_name,service_details in SEED_MONGO_INSTANCES.items():
+    nodes_with_seeds[service_name] = {
+      'hostname': config['nodes'][config['services'][service_name]]['hostname'],
+    }
+
+  # dynamically build playbook for nodes with seeds
+  template = """
+    ---
+    {% for service_name,service_details in nodes_with_seeds.items() %}
+    - hosts: {{ service_details['hostname'] }}
+      gather_facts: no
+      become: no
+      any_errors_fatal: true
+
+      tasks:
+        - name: Ensures wkld dir exists
+          file:
+            path: /code/wkld
+            state: directory
+            mode: u=rwx,g=rw,o=xrw
+
+        - name: Upload dump file to remote
+          copy:
+            src: {{ wkld_path }}/{{ service_name }}.dump.tgz
+            dest: /code/wkld/
+            mode: u=rwx,g=r,o=xr
+
+        - name: Register container id
+          shell: >
+            docker ps -q -f name={{ service_name }}
+          register: container_id
+
+        - name: Print container id
+          debug:
+            msg: "{% raw %}{{ container_id.stdout }}{% endraw %}"
+
+        - name: Copy dump file to container
+          shell: >
+            docker cp /code/wkld/{{ service_name }}.dump.tgz {% raw %}{{ container_id.stdout }}{% endraw %}:/tmp/
+
+        - name: Restore dump
+          shell: >
+            docker exec {% raw %}{{ container_id.stdout }}{% endraw %} mongorestore --drop --objcheck --nsInclude=ts.* --gzip --archive=/tmp/{{ service_name }}.dump.tgz
+
+    {% endfor %}
+  """
+  template_render = Environment().from_string(template).render({
+    'wkld_path': ROOT_PATH / 'wkld',
+    'nodes_with_seeds': nodes_with_seeds,
+  })
+  restore_playbook_filepath = deploy_path / 'seed-restore.yml'
+  with open(restore_playbook_filepath, 'w') as f:
+    # remove empty lines and dedent for easier read
+    f.write(textwrap.dedent(template_render))
+  print(f"[SAVED] '{restore_playbook_filepath}'")
+
+  # restore datastores dumps
+  with local.cwd(deploy_path):
+    ansible_playbook['seed-restore.yml',
+      '-i', deploy_path / 'inventory.cfg',
+    ] & FG
+
+def _restore_seed_dump__local():
+  from plumbum import local, FG
+  from plumbum.cmd import docker_compose, docker
+
+  # tag for this deployment
+  tag = _get_last('local', 'deploy_tag')
+  deploy_path = ROOT_PATH / 'deploy' / tag
+
+  # restore datastores dumps
+  with local.cwd(deploy_path):
+    for service_name,_ in SEED_MONGO_INSTANCES.items():
+      # get container id
+      container_id = docker_compose[
+        '--project-directory', APP_PATH,
+        '-f', deploy_path / 'docker-compose.yml',
+        'ps', '-q', service_name
+      ]().rstrip()
+      # copy file to container
+      docker['cp',
+        ROOT_PATH / 'wkld' / f"{service_name}.dump.tgz",
+        f"{container_id}:/tmp/"
+      ] & FG
+      # restore dump
+      docker_compose[
+        '--project-directory', APP_PATH,
+        '-f', deploy_path / 'docker-compose.yml',
+        'exec', service_name,
+        'mongorestore', '--drop', '--objcheck', '--nsInclude=ts.*', '--gzip', f"--archive=/tmp/{service_name}.dump.tgz",
+      ] & FG
 
 
 #--------------
