@@ -1,0 +1,61 @@
+---
+- hosts: clients
+  gather_facts: no
+  become: no
+  any_errors_fatal: true
+
+  tasks:
+
+    - name: Ensures wkld dir exists
+      file:
+        path: /code/wkld
+        state: directory
+        mode: u=rwx,g=rw,o=xrw
+
+    - name: Copy seed.py file
+      copy:
+        src: "{{ deploy_path }}/seed.py"
+        dest: /code/wkld/seed.py
+        mode: u=rwx,g=r,o=xr
+
+- hosts: swarm_manager
+  gather_facts: no
+  become: no
+  any_errors_fatal: true
+
+  tasks:
+
+    - name: Remove any pre-existing seed stack
+      shell: >
+        docker stack rm seed
+
+    - name: Ensures wkld dir exists
+      file:
+        path: /code/wkld
+        state: directory
+        mode: u=rwx,g=rw,o=xrw
+
+    - name: Copy seed docker-compose file
+      copy:
+        src: "{{ deploy_path }}/docker-compose-seed.yml"
+        dest: /code/wkld/docker-compose-seed.yml
+        mode: u=rwx,g=r,o=xr
+
+    - name: Run seed
+      shell: >
+        docker stack deploy --with-registry-auth --compose-file /code/wkld/docker-compose-seed.yml seed ;
+      register: out
+      failed_when: "not(out.rc == 0) or 'fail' in out.stderr"
+
+    - name: Wait for seed to complete
+      shell: >
+        docker stack ps --format {% raw %}"{{.ID}}|{{.CurrentState}}"{% endraw %} seed | grep "Complete" | wc -l
+      register: completed_seeds
+      retries: 999999
+      delay: 30
+      until: (completed_seeds.stdout | int) == (num_workers | int)
+
+    # Since if you run again we remove the stack it does us no harm to keep the stack up so we can look at logs
+    # - name: Remove seed stack
+    #   shell: >
+    #     docker stack rm seed
