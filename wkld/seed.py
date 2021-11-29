@@ -1,10 +1,8 @@
 import os
-import sys
 import requests
 from faker import Faker
 from faker.providers import ssn, phone_number
 from datetime import datetime, date
-import yaml
 from pprint import pprint as pp
 import multiprocessing
 import time
@@ -93,20 +91,9 @@ def create_order_and_pay(args):
     return None
 
 user_id, auth_token = auth_user()
-
-order_ids = []
 with multiprocessing.Pool(processes=multiprocessing.cpu_count()*4) as p:
   args_range = [ (user_id,auth_token) for i in range(SEED_SIZE) ]
   for i,order_id in enumerate(p.imap_unordered(create_order_and_pay, args_range)):
-    order_ids.append(order_id)
-    print(f"\tSeed [{i+1}/{SEED_SIZE}] -- {order_id}", flush=True) # hack to print to stdout progress bar steps
+    print(f"\tSeed [{i+1}/{SEED_SIZE}] -- {order_id}", flush=True)
 
-# remove None entries from seed
-order_ids = [oid for oid in order_ids if oid is not None]
-
-# export order ids to yaml
-seed_filepath = f"{DEPLOY_TAG}_seed.yml"
-with open(seed_filepath, 'w+') as f:
-  yaml.safe_dump(order_ids, f, default_flow_style=False)
-print(f"[SAVED] {seed_filepath}")
 exit(0)
