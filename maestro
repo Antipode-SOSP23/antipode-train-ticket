@@ -1241,6 +1241,13 @@ def wkld__gcp(args):
   # always restore latest dump
   _restore_seed_dump('gcp')
 
+  # split existing order ids per the number of clients
+  order_ids = _index_orders('gcp')
+  for worker,oids in zip(clients_inventory.values(), _split_list(order_ids, len(clients_inventory))):
+    oids_yaml_filepath = deploy_path / f"{tag}_seed_{worker['gcp_name']}.yml"
+    _dump_yaml(oids_yaml_filepath, oids)
+    print(f"[SAVED] '{oids_yaml_filepath}'")
+
   # copy locust file to deploy folder
   shutil.copy(ROOT_PATH / 'wkld' / 'locustfile.py', deploy_path)
 
