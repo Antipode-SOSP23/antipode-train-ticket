@@ -91,7 +91,7 @@ def _gcp_vm_start(zone, name):
 #--------------
 def info(args):
   if args['links']:
-    print(f"Homepage:\t{_service_public_endpoint(args['deploy_type'], 'ts-ui-dashboard')}\t\t\t(fdse_microservice:111111:1234)")
+    print(f"Homepage:\t{_service_public_endpoint(args['deploy_type'], 'ts-ui-dashboard')}\t\t\t({TT_USERNAME}:{TT_PASSWORD}:1234)")
     print(f"Admin:\t\t{_service_public_endpoint(args['deploy_type'], 'ts-ui-dashboard')}/adminlogin.html\t(admin:222222)")
     print(f"Jaeger:\t\t{_service_public_endpoint(args['deploy_type'], 'jaeger')}")
     print(f"RabbitMQ:\t{_service_public_endpoint(args['deploy_type'], 'rabbitmq')}\t\t\t(guest:guest)")
@@ -130,7 +130,7 @@ def info__local(args):
     from plumbum.cmd import docker_compose
 
     # service from train ticket
-    if args['logs'] in SERVICES:
+    if args['logs'] in TT_SERVICES:
       compose_args = [
         '--project-directory', APP_PATH,
         '-f', deploy_path / 'docker-compose.yml',
@@ -170,7 +170,7 @@ def info__gcp(args):
     follow_arg = '--follow' if args['follow'] else ''
 
     # service from train ticket
-    if args['logs'] in SERVICES:
+    if args['logs'] in TT_SERVICES:
       service_details = inventory[config['services'][args['logs']]]
 
       gcloud['compute', 'ssh', f"root@{GCP_SWARM_MANAGER_NAME}",
@@ -868,8 +868,8 @@ def seed__local(args):
     'auth_service_url': _service_public_endpoint('local', 'ts-auth-service'),
     'order_service_url': _service_public_endpoint('local', 'ts-order-service'),
     'inside_payment_service_url': _service_public_endpoint('local', 'ts-inside-payment-service'),
-    'tt_username': 'fdse_microservice',
-    'tt_password': '111111',
+    'tt_username': TT_USERNAME,
+    'tt_password': TT_PASSWORD,
     'workers': workers,
     'seed_size': args['size'],
   })
@@ -978,8 +978,8 @@ def wkld__local(args):
     'auth_service_url': _service_public_endpoint('local', 'ts-auth-service'),
     'cancel_service_url': _service_public_endpoint('local', 'ts-cancel-service'),
     'inside_payment_service_url': _service_public_endpoint('local', 'ts-inside-payment-service'),
-    'tt_username': 'fdse_microservice',
-    'tt_password': '111111',
+    'tt_username': TT_USERNAME,
+    'tt_password': TT_PASSWORD,
     'workers': workers,
     'users': args['threads'],
     'run_time': f"{args['duration']}s",
@@ -1121,8 +1121,8 @@ def wkld__gcp(args):
     'auth_service_url': _service_public_endpoint('gcp', 'ts-auth-service'),
     'cancel_service_url': _service_public_endpoint('gcp', 'ts-cancel-service'),
     'inside_payment_service_url': _service_public_endpoint('gcp', 'ts-inside-payment-service'),
-    'tt_username': 'fdse_microservice',
-    'tt_password': '111111',
+    'tt_username': TT_USERNAME,
+    'tt_password': TT_PASSWORD,
     'users': args['threads'],
     'run_time': f"{args['duration']}s",
     'rate': args['rate'],
@@ -1204,6 +1204,11 @@ def _services_to_port():
   with open(APP_PATH / 'docker-compose.yml') as file:
     return { name:int(d['ports'][0].split(':')[0]) for name,d in yaml.load(file, Loader=yaml.FullLoader)['services'].items() if 'ports' in d }
 
+def _index_orders(deploy_type):
+  import requests
+  r = requests.get(f"{_service_public_endpoint(deploy_type, 'ts-order-service')}/api/v1/orderservice/order")
+  return [ o['id'] for o in r.json()['data'] ]
+
 def _load_yaml(path):
   import yaml
   with open(path, 'r') as f:
@@ -1255,7 +1260,7 @@ def _service_public_endpoint__local(name):
   elif name == 'prometheus':
     return public_ip, 9090
   else:
-    return public_ip, SERVICES_TO_PORT[name]
+    return public_ip, TT_SERVICES_TO_PORT[name]
 
 def _service_public_endpoint__gcp(name):
   inventory = _load_inventory(ROOT_PATH / 'deploy' / _get_last('gcp', 'deploy_tag') / 'inventory.cfg')
@@ -1266,7 +1271,7 @@ def _service_public_endpoint__gcp(name):
   elif name == 'prometheus':
     return inventory[GCP_SWARM_MANAGER_NAME]['external_ip'], 9090
   else:
-    return inventory[config['services'][name]]['external_ip'], SERVICES_TO_PORT[name]
+    return inventory[config['services'][name]]['external_ip'], TT_SERVICES_TO_PORT[name]
 
 def _is_inside_docker():
   return os.path.isfile('/.dockerenv')
@@ -1359,8 +1364,10 @@ SCRIPT_NAME = __file__.rsplit("/", 1)[1].split('.')[0]
 ROOT_PATH = Path(os.path.abspath(os.path.dirname(sys.argv[0])))
 APP_PATH = ROOT_PATH / 'train-ticket'
 DOCKER_COMPOSE_NETWORK = 'my-network'
-SERVICES = _services()
-SERVICES_TO_PORT = _services_to_port()
+TT_SERVICES = _services()
+TT_SERVICES_TO_PORT = _services_to_port()
+TT_USERNAME = 'fdse_microservice'
+TT_PASSWORD = '111111'
 LAST_INFO_FILE = ROOT_PATH / '.last.yml'
 LOCUST_DOCKER_IMAGE_NAME = 'locust-tt:antipode'
 SEED_MONGO_INSTANCES = ['ts-order-mongo', 'ts-inside-payment-mongo']
