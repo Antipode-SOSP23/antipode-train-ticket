@@ -34,7 +34,7 @@ class TrainTicket(HttpUser):
 
   def on_start(self):
     # load order_ids yaml
-    with open(f"{DEPLOY_TAG}_seed.yml", 'r') as f:
+    with open(f"{DEPLOY_TAG}_seed_{WORKER_ID}.yml", 'r') as f:
       self.order_ids = (yaml.safe_load(f) or {})
 
     # login
