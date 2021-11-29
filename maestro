@@ -822,7 +822,7 @@ def seed__local(args):
   if not args['norestore']:
     # restore datastores dumps
     with local.cwd(deploy_path):
-      for service_name in SEED_MONGO_INSTANCES:
+      for service_name,service_details in SEED_MONGO_INSTANCES.items():
         # get container id
         container_id = docker_compose[
           '--project-directory', APP_PATH,
@@ -897,9 +897,18 @@ def seed__local(args):
   if click.confirm('[WARN] Do you wish to replace existing seed file with dumped version?', default=True):
     with local.cwd(deploy_path):
       # mongodump for selected databases
-      for service_name in SEED_MONGO_INSTANCES:
+      for service_name,service_details in SEED_MONGO_INSTANCES.items():
+        # first reindex the collections in the database
+        for collection in service_details['collections']:
+          docker_compose[
+            '--project-directory', APP_PATH,
+            '-f', deploy_path / 'docker-compose.yml',
+            'exec', service_name,
+            'mongo', 'ts', f"--eval='db.{collection}.reIndex()'",
+          ] & FG
+
+        # now dump into a file
         dump_filename = f"{tag}_{service_name}.dump.tgz"
-        # first execture the dump into a file
         docker_compose[
           '--project-directory', APP_PATH,
           '-f', deploy_path / 'docker-compose.yml',
@@ -952,7 +961,7 @@ def wkld__local(args):
 
   # restore datastores dumps
   with local.cwd(deploy_path):
-    for service_name in SEED_MONGO_INSTANCES:
+    for service_name,service_details in SEED_MONGO_INSTANCES.items():
       # get container id
       container_id = docker_compose[
         '--project-directory', APP_PATH,
@@ -1424,7 +1433,14 @@ TT_USERNAME = 'fdse_microservice'
 TT_PASSWORD = '111111'
 LAST_INFO_FILE = ROOT_PATH / '.last.yml'
 LOCUST_DOCKER_IMAGE_NAME = 'locust-tt:antipode'
-SEED_MONGO_INSTANCES = ['ts-order-mongo', 'ts-inside-payment-mongo']
+SEED_MONGO_INSTANCES = {
+  'ts-order-mongo': {
+    'collections': ['orders'],
+  },
+  'ts-inside-payment-mongo': {
+    'collections': ['payment'],
+  }
+}
 SEED_TO_DURATION_FACTOR = 35 # in 1 second it does less than this
 DEPLOY_TYPES = [ 'local', 'gcp' ]
 GCP_PROJECT_ID = 'pluribus'
