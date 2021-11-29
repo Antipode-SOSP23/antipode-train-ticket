@@ -60,6 +60,7 @@ RUN set -ex ;\
         jinja2 \
         ansible \
         python-dotenv \
+        click \
         # error with mounting docker-compose bin as volume
         docker-compose \
         ;

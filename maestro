@@ -800,6 +800,108 @@ def clean__gcp(args):
 
 
 #--------------
+# SEED
+#--------------
+def seed(args):
+  getattr(sys.modules[__name__], f"seed__{args.pop('deploy_type')}")(args)
+  print("[INFO] Seed done!")
+
+def seed__local(args):
+  import shutil
+  from jinja2 import Environment
+  import textwrap
+  from plumbum import local, FG
+  from plumbum.cmd import docker_compose
+  import click
+
+  # tag for this deployment
+  tag = _get_last('local', 'deploy_tag')
+  deploy_path = ROOT_PATH / 'deploy' / tag
+
+  # build workers info
+  workers = [ { 'id': f"worker{i}"} for i in range(args['clients']) ]
+
+  # copy seed file to deploy folder
+  shutil.copy(ROOT_PATH / 'wkld' / 'seed.py', deploy_path)
+
+  # add volume to docker-compose seed mongo instances
+  compose = _load_yaml(deploy_path / 'docker-compose.yml')
+  for service_name in SEED_MONGO_INSTANCES:
+    service = compose['services'][service_name]
+    if 'volumes' not in service:
+      service['volumes'] = []
+    service['volumes'].append(f"{deploy_path}:/mnt/deploy")
+    # remove duplicated values
+    service['volumes'] = list(set(service['volumes']))
+
+  # save updated version
+  _dump_yaml(deploy_path / 'docker-compose.yml', compose)
+  print(f"[SAVED] '{deploy_path / 'docker-compose.yml'}'")
+
+  # dynamically build docker-compose for client seeds
+  template = """
+    version: '3.6'
+
+    services:
+      {% for worker in workers %}
+      {{ worker['id'] }}:
+        image: {{ locust_docker_image_name }}
+        working_dir: /mnt/locust
+        command: python3 seed.py
+        environment:
+          DEPLOY_TAG: {{ deploy_tag }}
+          WORKER_ID: {{ worker['id'] }}
+          AUTH_SERVICE_URL: {{ auth_service_url }}
+          ORDER_SERVICE_URL: {{ order_service_url }}
+          INSIDE_PAYMENT_SERVICE_URL: {{ inside_payment_service_url }}
+          TT_USERNAME: {{ tt_username }}
+          TT_PASSWORD: {{ tt_password }}
+          SEED_SIZE: {{ seed_size }}
+        volumes:
+          - ./:/mnt/locust
+      {% endfor %}
+  """
+  template_render = Environment().from_string(template).render({
+    'locust_docker_image_name': LOCUST_DOCKER_IMAGE_NAME,
+    #
+    'deploy_tag': tag,
+    'auth_service_url': _service_public_endpoint('local', 'ts-auth-service'),
+    'order_service_url': _service_public_endpoint('local', 'ts-order-service'),
+    'inside_payment_service_url': _service_public_endpoint('local', 'ts-inside-payment-service'),
+    'tt_username': 'fdse_microservice',
+    'tt_password': '111111',
+    'workers': workers,
+    'seed_size': args['size'],
+  })
+  docker_compose_filepath = deploy_path / 'docker-compose-seed.yml'
+  with open(docker_compose_filepath, 'w') as f:
+    # remove empty lines and dedent for easier read
+    f.write(textwrap.dedent(template_render))
+  print(f"[SAVED] '{docker_compose_filepath}'")
+
+  # run seed
+  with local.cwd(deploy_path):
+    # docker_compose['-f', f"{docker_compose_filepath}", 'up'] & FG
+    # remove and clean containers
+    # docker_compose['-f', f"{docker_compose_filepath}", 'down', '--rmi', 'local', '-v'] & FG
+    None
+
+  # check if experiment was cleaned and if not we ask the user if he wants to continue
+  if click.confirm('[WARN] Do you wish to replace existing seed file with dumped version?', default=True):
+    with local.cwd(deploy_path):
+      # mongodump for selected databases
+      for service_name in SEED_MONGO_INSTANCES:
+        docker_compose[
+          '--project-directory', APP_PATH,
+          '-f', deploy_path / 'docker-compose.yml',
+          'exec', service_name,
+          'mongodump', '--gzip', f"--archive=/mnt/deploy/{tag}_{service_name}.dump.tgz",
+        ] & FG
+        # now copy dumped files to the wkld dir
+        shutil.copy(deploy_path / f"{tag}_{service_name}.dump.tgz", ROOT_PATH / 'wkld' / f"{service_name}.dump.tgz")
+
+
+#--------------
 # WORKLOAD
 #--------------
 def wkld(args):
@@ -824,61 +926,6 @@ def wkld__local(args):
   deploy_path = ROOT_PATH / 'deploy' / tag
 
   workers = [ { 'id': f"worker{i}"} for i in range(args['clients']) ]
-
-  if not args['noseed']:
-    # copy seed file to deploy folder
-    shutil.copy(ROOT_PATH / 'wkld' / 'seed.py', deploy_path)
-
-    # limit the factor to the rate
-    # add a little bit more than the rate just to be sure
-    seed_size = int(min(SEED_TO_DURATION_FACTOR, args['rate']*1.5) * args['duration'])
-
-    # dynamically build docker-compose for client seeds
-    template = """
-    version: '3.6'
-
-      services:
-        {% for worker in workers %}
-        {{ worker['id'] }}:
-          image: {{ locust_docker_image_name }}
-          working_dir: /mnt/locust
-          command: python3 seed.py
-          environment:
-            DEPLOY_TAG: {{ deploy_tag }}
-            WORKER_ID: {{ worker['id'] }}
-            AUTH_SERVICE_URL: {{ auth_service_url }}
-            ORDER_SERVICE_URL: {{ order_service_url }}
-            INSIDE_PAYMENT_SERVICE_URL: {{ inside_payment_service_url }}
-            TT_USERNAME: {{ tt_username }}
-            TT_PASSWORD: {{ tt_password }}
-            SEED_SIZE: {{ seed_size }}
-          volumes:
-            - ./:/mnt/locust
-        {% endfor %}
-    """
-    inventory = Environment().from_string(template).render({
-      'locust_docker_image_name': LOCUST_DOCKER_IMAGE_NAME,
-      #
-      'deploy_tag': tag,
-      'auth_service_url': _service_public_endpoint('local', 'ts-auth-service'),
-      'order_service_url': _service_public_endpoint('local', 'ts-order-service'),
-      'inside_payment_service_url': _service_public_endpoint('local', 'ts-inside-payment-service'),
-      'tt_username': 'fdse_microservice',
-      'tt_password': '111111',
-      'workers': workers,
-      'seed_size': seed_size,
-    })
-    docker_compose_filepath = deploy_path / 'docker-compose-seed.yml'
-    with open(docker_compose_filepath, 'w') as f:
-      # remove empty lines and dedent for easier read
-      f.write(textwrap.dedent(inventory))
-    print(f"[SAVED] '{docker_compose_filepath}'")
-
-    # run seed
-    with local.cwd(deploy_path):
-      docker_compose['-f', f"{docker_compose_filepath}", 'up'] & FG
-      # remove and clean containers
-      docker_compose['-f', f"{docker_compose_filepath}", 'down', '--rmi', 'local', '-v'] & FG
 
   # copy locust files to deploy folder
   shutil.copy(ROOT_PATH / 'wkld' / 'locustfile.py', deploy_path)
@@ -992,79 +1039,6 @@ def wkld__gcp(args):
     exit(-1)
   # select clients according to wanted run
   clients_inventory = { i:inventory[i] for i in list(config['clients'].keys())[:args['clients']] }
-
-  if not args['noseed']:
-    # copy locust files to deploy folder
-    shutil.copy(ROOT_PATH / 'wkld' / 'seed.py', deploy_path)
-
-    # limit the factor to the rate
-    # add a little bit more than the rate just to be sure
-    seed_size = int(min(SEED_TO_DURATION_FACTOR, args['rate']*1.5) * args['duration'])
-
-    # dynamically build docker-compose for client seeds
-    template = """
-      version: '3'
-
-      networks:
-        {{ docker_compose_network }}:
-          external:
-            name: {{ docker_compose_network }}
-
-      services:
-        {% for _,worker in workers.items() %}
-        {{ worker['gcp_name'] }}:
-          image: {{ gcp_docker_image_namespace }}/{{ locust_docker_image_name }}
-          working_dir: /mnt/locust
-          command: python3 seed.py
-          environment:
-            DEPLOY_TAG: {{ deploy_tag }}
-            WORKER_ID: {{ worker['gcp_name'] }}
-            AUTH_SERVICE_URL: {{ auth_service_url }}
-            ORDER_SERVICE_URL: {{ order_service_url }}
-            INSIDE_PAYMENT_SERVICE_URL: {{ inside_payment_service_url }}
-            TT_USERNAME: {{ tt_username }}
-            TT_PASSWORD: {{ tt_password }}
-            SEED_SIZE: {{ seed_size }}
-          volumes:
-            - ./:/mnt/locust
-          deploy:
-            restart_policy:
-              # do not restart when ends correctly
-              condition: on-failure
-            placement:
-              constraints:
-                - node.hostname == {{ worker['gcp_name'] }}
-        {% endfor %}
-    """
-    inventory = Environment().from_string(template).render({
-      'locust_docker_image_name': LOCUST_DOCKER_IMAGE_NAME,
-      'gcp_docker_image_namespace': GCP_DOCKER_IMAGE_NAMESPACE,
-      'docker_compose_network': DOCKER_COMPOSE_NETWORK,
-      #
-      'deploy_tag': tag,
-      'auth_service_url': _service_public_endpoint('gcp', 'ts-auth-service'),
-      'order_service_url': _service_public_endpoint('gcp', 'ts-order-service'),
-      'inside_payment_service_url': _service_public_endpoint('gcp', 'ts-inside-payment-service'),
-      'tt_username': 'fdse_microservice',
-      'tt_password': '111111',
-      'workers': clients_inventory,
-      'seed_size': seed_size,
-    })
-    docker_compose_filepath = deploy_path / 'docker-compose-seed.yml'
-    with open(docker_compose_filepath, 'w') as f:
-      # remove empty lines and dedent for easier read
-      f.write(textwrap.dedent(inventory))
-    print(f"[SAVED] '{docker_compose_filepath}'")
-
-    # run seed playbook
-    with local.cwd(ROOT_PATH / 'gcp'):
-      ansible_playbook['wkld-seed.yml',
-        '-i', deploy_path / 'inventory.cfg',
-        '-e', f"deploy_path={deploy_path}",
-        '-e', f"deploy_tag={tag}",
-        '-e', f"seed_size={seed_size}",
-        '-e', f"num_workers={len(clients_inventory)}",
-      ] & FG
 
   # copy locust file to deploy folder
   shutil.copy(ROOT_PATH / 'wkld' / 'locustfile.py', deploy_path)
@@ -1389,6 +1363,7 @@ SERVICES = _services()
 SERVICES_TO_PORT = _services_to_port()
 LAST_INFO_FILE = ROOT_PATH / '.last.yml'
 LOCUST_DOCKER_IMAGE_NAME = 'locust-tt:antipode'
+SEED_MONGO_INSTANCES = ['ts-order-mongo', 'ts-inside-payment-mongo']
 SEED_TO_DURATION_FACTOR = 35 # in 1 second it does less than this
 DEPLOY_TYPES = [ 'local', 'gcp' ]
 GCP_PROJECT_ID = 'pluribus'
@@ -1457,9 +1432,13 @@ if __name__ == '__main__':
   clean_parser = subparsers.add_parser('clean', help='Clean application')
   clean_parser.add_argument('-strong', action='store_true', help="Strong clean deleting containers or remote nodes")
 
+  # seed application
+  seed_parser = subparsers.add_parser('seed', help='Seed application')
+  seed_parser.add_argument('-size', required=True, type=int, help="Number of new requests to seed")
+  seed_parser.add_argument('-clients', required=True, type=int, help="Number of clients to use for seeding")
+
   # workload application
   wkld_parser = subparsers.add_parser('wkld', help='Run workload generator')
-  wkld_parser.add_argument('-noseed', action='store_true', help="Skip seed generation")
   wkld_parser.add_argument('-c', '--clients', type=int, default=1, help="Number of clients to run on")
   wkld_parser.add_argument('-t', '--threads', type=int, default=1, help="Number of threads")
   wkld_parser.add_argument('-d', '--duration', type=int, default=1, help="Duration in seconds")
