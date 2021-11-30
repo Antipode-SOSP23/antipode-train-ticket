@@ -927,12 +927,7 @@ def seed__gcp(args):
   deploy_path = ROOT_PATH / 'deploy' / tag
   config = _load_yaml(ROOT_PATH / _get_last('gcp', 'deploy_config'))
   inventory = _load_inventory(deploy_path / 'inventory.cfg')
-
-  if len(config['clients']) < args['clients']:
-    print(f"[ERROR] Config '{_get_last('gcp', 'deploy_config')}' has less clients ({len(config['clients'])}) than cli args ({args['clients']})")
-    exit(-1)
-  # select clients according to wanted run
-  clients_inventory = { i:inventory[i] for i in list(config['clients'].keys())[:args['clients']] }
+  clients_inventory = _get_inventory_group(inventory, 'clients')
 
   # by default we restore from latest dump
   if not args['norestore']:
