@@ -1537,6 +1537,7 @@ def _load_inventory(filepath):
   inventory = InventoryManager(loader=loader, sources=str(filepath))
   variable_manager = VariableManager(loader=loader, inventory=inventory)
 
+  hostname_to_groups = _reverse_dict(inventory.get_groups_dict())
   # other methods:
   # - inventory.get_host('manager.antipode-296620').vars
 
@@ -1546,6 +1547,7 @@ def _load_inventory(filepath):
     e = {}
     # load hostname manually since its the key for each host
     e['gcp_hostname'] = gcp_hostname
+    e['groups'] = hostname_to_groups[gcp_hostname]
     # load all remaining keys
     for k,v in info.vars.items():
       e[k] = v
@@ -1558,6 +1560,9 @@ def _load_inventory(filepath):
     loaded_inventory[info.vars['gcp_name']] = e
 
   return loaded_inventory
+
+def _get_inventory_group(inventory, group):
+  return { k:v for k, v in inventory.items() if group in v['groups'] }
 
 def _reverse_dict(d):
   rev = {}
