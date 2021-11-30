@@ -1387,13 +1387,17 @@ def ssh__gcp(args):
   inventory = _load_inventory(inventory_filepath)
   ssh_key = ROOT_PATH / 'gcp' / '.ssh' / 'google_compute_engine'
 
+  # add hosts from groups into the hosts args
+  for g in args['groups']:
+    for h in _get_inventory_group(inventory, g).keys():
+      args['hosts'].append(h)
+
   xpanes_args = ['xpanes', '-c', f"'ssh -o StrictHostKeyChecking=no -i {ssh_key} root@{{}}'"]
   for h in args['hosts']:
     if h not in inventory:
       print(f"[WARN] Skipping '{h}' - not found in inventory")
     # get the public ip
     xpanes_args.append(inventory[h]['external_ip'])
-
   # plumbum does not work hence
   os.system(' '.join(xpanes_args))
 
@@ -1787,7 +1791,8 @@ if __name__ == '__main__':
 
   # ssh
   ssh_parser = subparsers.add_parser('ssh', help='SSH into machines')
-  ssh_parser.add_argument('-hosts', required=True, nargs='+', help="Connect to nodes based on id")
+  ssh_parser.add_argument('-hosts', required=False, nargs='+', default=[], help="Connect to nodes based on id")
+  ssh_parser.add_argument('-groups', required=False, nargs='+', default=[], help="Connect to nodes based on group")
 
   # parse args
   args = vars(main_parser.parse_args())
