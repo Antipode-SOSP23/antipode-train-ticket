@@ -1561,10 +1561,15 @@ def _load_inventory(filepath):
 
 def _reverse_dict(d):
   rev = {}
-  for k,v in d.items():
-    if v not in rev:
-      rev[v] = []
-    rev[v].append(k)
+  for k,vs in d.items():
+    # if not a list, make it a list with a single entry
+    if not isinstance(vs, list):
+      vs = [vs]
+    # loop list of values
+    for v in vs:
+      if v not in rev:
+        rev[v] = []
+      rev[v].append(k)
   return rev
 
 def _restore_seed_dump(deploy_type):
