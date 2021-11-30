@@ -1232,11 +1232,11 @@ def wkld__gcp(args):
   config = _load_yaml(ROOT_PATH / _get_last('gcp', 'deploy_config'))
   inventory = _load_inventory(deploy_path / 'inventory.cfg')
 
-  if len(config['clients']) < args['clients']:
-    print(f"[ERROR] Config '{_get_last('gcp', 'deploy_config')}' has less clients ({len(config['clients'])}) than cli args ({args['clients']})")
-    exit(-1)
+  if len(config['clients']) != args['clients']:
+    print(f"[WARN] GCP deployment ignores 'clients' arguments")
+    args['clients'] = len(config['clients'])
   # select clients according to wanted run
-  clients_inventory = { i:inventory[i] for i in list(config['clients'].keys())[:args['clients']] }
+  clients_inventory = { i:inventory[i] for i in list(config['clients'].keys()) }
 
   # always restore latest dump
   _restore_seed_dump('gcp')
