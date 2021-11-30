@@ -1,5 +1,5 @@
 ---
-- hosts: clients
+- hosts: clients, swarm_manager
   gather_facts: no
   become: no
   any_errors_fatal: true
@@ -11,6 +11,19 @@
         path: /code/wkld
         state: directory
         mode: u=rwx,g=rw,o=xrw
+
+    - name: Copy locustfile.py file
+      copy:
+        src: "{{ deploy_path }}/locustfile.py"
+        dest: /code/wkld/locustfile.py
+        mode: u=rwx,g=r,o=xr
+
+- hosts: clients
+  gather_facts: no
+  become: no
+  any_errors_fatal: true
+
+  tasks:
 
     - name: Upload seed files
       copy:
@@ -26,21 +39,6 @@
     - name: Print available seeds per client
       debug:
         msg: "Seeds: {{ available_seeds.stdout }}"
-
-
-- hosts: clients, swarm_manager
-  gather_facts: no
-  become: no
-  any_errors_fatal: true
-
-  tasks:
-
-    - name: Copy locustfile.py file
-      copy:
-        src: "{{ deploy_path }}/locustfile.py"
-        dest: /code/wkld/locustfile.py
-        mode: u=rwx,g=r,o=xr
-
 
 - hosts: swarm_manager
   gather_facts: no
