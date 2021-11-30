@@ -525,35 +525,38 @@ def deploy__gcp(args):
     vms['cluster'].append(_gcp_vm_create(node_info['zone'], node_config))
 
   # client nodes
-  for node_name, node_info in config['clients'].items():
-    node_config = {
-      'name': node_name,
-      'machineType': f"zones/{node_info['zone']}/machineTypes/{node_info['machine_type']}",
-      'disks': [
-        {
-          'boot': True,
-          'autoDelete': True,
-          'initializeParams': {
-            'sourceImage': GCP_MACHINE_IMAGE_LINK,
+  for node_group in config['clients']:
+    for i in range(1, node_group['num']):
+      node_name = f"client{i:02}"
+      hostname = f"client{i:02}.tt"
+      node_config = {
+        'name': node_name,
+        'machineType': f"zones/{node_group['zone']}/machineTypes/{node_group['machine_type']}",
+        'disks': [
+          {
+            'boot': True,
+            'autoDelete': True,
+            'initializeParams': {
+              'sourceImage': GCP_MACHINE_IMAGE_LINK,
+            }
           }
-        }
-      ],
-      'hostname': node_info['hostname'],
-      # Specify a network interface with NAT to access the public internet.
-      'networkInterfaces': [
-        {
-          'network': 'global/networks/default',
-          'accessConfigs': [
-            {'type': 'ONE_TO_ONE_NAT', 'name': 'External NAT'}
-          ]
-        }
-      ],
-      # tags for firewall rules
-      "tags": {
-        "items": ['swarm', 'nodes'],
-      },
-    }
-    vms['clients'].append(_gcp_vm_create(node_info['zone'], node_config))
+        ],
+        'hostname': hostname,
+        # Specify a network interface with NAT to access the public internet.
+        'networkInterfaces': [
+          {
+            'network': 'global/networks/default',
+            'accessConfigs': [
+              {'type': 'ONE_TO_ONE_NAT', 'name': 'External NAT'}
+            ]
+          }
+        ],
+        # tags for firewall rules
+        "tags": {
+          "items": ['swarm', 'nodes'],
+        },
+      }
+      vms['clients'].append(_gcp_vm_create(node_info['zone'], node_config))
 
   # Build inventory for ansible playbooks
   inventory = {}

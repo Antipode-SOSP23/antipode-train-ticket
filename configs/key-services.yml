@@ -1,28 +1,7 @@
 clients:
-  client01:
-    hostname: client01.tt
-    zone: us-central1-a
+  - zone: us-central1-a
     machine_type: e2-small
-  client02:
-    hostname: client02.tt
-    zone: us-central1-a
-    machine_type: e2-small
-  client03:
-    hostname: client03.tt
-    zone: us-central1-a
-    machine_type: e2-small
-  client04:
-    hostname: client04.tt
-    zone: us-central1-a
-    machine_type: e2-small
-  client05:
-    hostname: client05.tt
-    zone: us-central1-a
-    machine_type: e2-small
-  client06:
-    hostname: client06.tt
-    zone: us-central1-a
-    machine_type: e2-small
+    num: 12
 
 manager:
   name: manager-tt
