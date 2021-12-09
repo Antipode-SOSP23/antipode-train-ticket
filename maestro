@@ -1356,7 +1356,8 @@ def wkld__gcp(args):
     ] & FG
 
     # create gather folder
-    gather_path = ROOT_PATH / 'gather' / tag
+    gather_tag = f"{tag}-{len(clients_inventory)}cli-{args['threads']}threads"
+    gather_path = ROOT_PATH / 'gather' / gather_tag
     os.makedirs(gather_path, exist_ok=True)
 
     ansible_playbook['wkld-gather.yml',
