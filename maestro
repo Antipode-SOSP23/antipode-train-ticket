@@ -1687,6 +1687,21 @@ def _restore_seed_dump__local():
         'mongorestore', '--drop', '--objcheck', '--nsInclude=ts.*', '--gzip', f"--archive=/tmp/{service_name}.dump.tgz",
       ] & FG
 
+def _screenshot_website(url, filepath):
+  # ref: https://pythonbasics.org/selenium-screenshot/
+  from selenium import webdriver
+  from selenium.webdriver.chrome.options import Options
+
+
+  options = webdriver.ChromeOptions()
+  options.headless = True
+  driver = webdriver.Chrome(options=options)
+
+  driver.get(url)
+  S = lambda X: driver.execute_script('return document.body.parentNode.scroll'+X)
+  driver.set_window_size(S('Width')*2,S('Height')*2) # 1920, 1080
+  driver.find_element_by_tag_name('body').screenshot(str(filepath))
+  driver.quit()
 
 #--------------
 # CONSTANTS

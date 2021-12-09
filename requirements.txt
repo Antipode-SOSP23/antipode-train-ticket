@@ -10,3 +10,4 @@ requests
 seaborn
 urllib3
 click
+selenium

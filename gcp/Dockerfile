@@ -14,6 +14,10 @@ RUN set -ex ;\
         gnupg \
         curl \
         jq \
+        # selenium
+        libnss3 \
+        libdbus-1-3 \
+        chromium-driver \
         # others
         sudo \
         rsync \
@@ -52,6 +56,7 @@ RUN set -ex ;\
 # install python packages
 #-------------
 ENV CLOUDSDK_PYTHON=/usr/bin/python3
+ENV 'DISPLAY'=':10.0'
 RUN set -ex ;\
     pip install --no-cache-dir --upgrade \
         google-api-python-client \
@@ -61,6 +66,7 @@ RUN set -ex ;\
         ansible \
         python-dotenv \
         click \
+        selenium \
         # error with mounting docker-compose bin as volume
         docker-compose \
         ;
