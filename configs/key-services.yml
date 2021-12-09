@@ -1,7 +1,6 @@
 clients:
   - zone: us-central1-a
-    machine_type: e2-small
-    num: 12
+    machine_type: e2-medium
 
 manager:
   name: manager-tt
