@@ -1,0 +1,51 @@
+#!/usr/bin/env python3
+
+from pathlib import Path
+import os
+import sys
+from pprint import pprint as pp
+from plumbum import FG, BG
+from plumbum import local
+import time
+
+#--------------
+# HELPERS
+#--------------
+
+#--------------
+# CONSTANTS
+#--------------
+ROOT_PATH = Path(os.path.abspath(os.path.dirname(sys.argv[0])))
+DEFAULT_CONFIG = 'configs/key-services.yml'
+DURATION = 300
+maestro = local["./maestro"]
+#--------------
+COMBINATIONS = [
+  (4, 1000),  #✅
+  (4, 5000),  #✅
+  (4, 10000), #✅
+]
+
+
+#--------------
+# RUN
+#--------------
+for clients, threads in COMBINATIONS:
+  print('[INFO] New deployment starting:')
+  print(f"\t > clients: {clients} // threads: {threads}\n")
+
+  # deploy configuration
+  maestro['--gcp', 'deploy', '-config', DEFAULT_CONFIG, '-clients', clients] & FG
+  maestro['--gcp', 'run', '-portainer', '-prometheus'] & FG
+  maestro['--gcp', 'wkld', '-d', DURATION, '-c', clients, '-t', threads] & FG
+
+  # take prometheus screenshot
+  # maestro['--gcp', 'info', '-links'] & FG
+  # input("[WAIT] Observer prometheus output. Press enter when finished ...")
+
+  # soft clean
+  maestro['--gcp', 'clean'] & FG
+  print('\n[INFO] Done!')
+
+# strong clean at the end
+maestro['--gcp', 'clean', '-strong'] & FG
