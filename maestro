@@ -784,7 +784,6 @@ def clean__gcp(args):
   inventory_filepath = deploy_path / 'inventory.cfg'
   inventory = _load_inventory(inventory_filepath)
 
-
   if args['strong']:
     print("[INFO] Removing GCP nodes ...")
     for _, host in inventory.items():
@@ -1367,6 +1366,11 @@ def wkld__gcp(args):
       '-e', f"deploy_tag={tag}",
     ] & FG
 
+  # save prometheus view to file
+  if _get_last('gcp', 'prometheus'):
+    prometheus_url = f"{_service_public_endpoint('gcp', 'prometheus')}/{PROMETHEUS_GRAPH_URL}"
+    _screenshot_website(prometheus_url, gather_path / 'prometheus.png')
+
   # duplicate last file with run tags
   _dump_yaml(gather_path / 'last.yml', _load_yaml(LAST_INFO_FILE)['gcp'])
 
@@ -1697,16 +1701,23 @@ def _screenshot_website(url, filepath):
   # ref: https://pythonbasics.org/selenium-screenshot/
   from selenium import webdriver
   from selenium.webdriver.chrome.options import Options
+  from selenium.webdriver.support.ui import Select
+  from selenium.webdriver.common.by import By
 
-
-  options = webdriver.ChromeOptions()
-  options.headless = True
-  driver = webdriver.Chrome(options=options)
+  chrome_options = Options()
+  chrome_options.add_argument('--no-sandbox')
+  chrome_options.add_argument('--headless')
+  chrome_options.add_argument('--disable-gpu')
+  chrome_options.add_argument('--start-maximized')
+  chrome_options.add_argument('--disable-dev-shm-usage')
+  chrome_options.add_argument('--profile-directory=Default')
+  chrome_options.add_argument('--user-data-dir=~/.config/google-chrome')
+  driver = webdriver.Chrome(options=chrome_options)
 
   driver.get(url)
   S = lambda X: driver.execute_script('return document.body.parentNode.scroll'+X)
-  driver.set_window_size(S('Width')*2,S('Height')*2) # 1920, 1080
-  driver.find_element_by_tag_name('body').screenshot(str(filepath))
+  driver.set_window_size(S('Width')*1.5, S('Height')*8) # Super hack
+  driver.find_element(By.TAG_NAME, 'body').screenshot(str(filepath))
   driver.quit()
 
 #--------------
