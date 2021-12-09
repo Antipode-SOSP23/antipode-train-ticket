@@ -784,25 +784,27 @@ def clean__gcp(args):
   inventory_filepath = deploy_path / 'inventory.cfg'
   inventory = _load_inventory(inventory_filepath)
 
-  if _get_last('gcp', 'prometheus'):
-    with local.cwd(ROOT_PATH / 'gcp'):
-      ansible_playbook['prometheus-clean.yml', '-i', inventory_filepath] & FG
-      _set_last('gcp', 'prometheus', False) # already cleaned so we remove flag
-
-  if _get_last('gcp', 'portainer'):
-    with local.cwd(ROOT_PATH / 'gcp'):
-      ansible_playbook['portainer-clean.yml', '-i', inventory_filepath] & FG
-      _set_last('gcp', 'portainer', False) # already cleaned so we remove flag
-
-  with local.cwd(ROOT_PATH / 'gcp'):
-    ansible_playbook['wkld-clean.yml', '-i', inventory_filepath] & FG
-    ansible_playbook['tt-clean.yml', '-i', inventory_filepath] & FG
-    ansible_playbook['swarm-clean.yml', '-i', inventory_filepath] & FG
 
   if args['strong']:
     print("[INFO] Removing GCP nodes ...")
     for _, host in inventory.items():
       _gcp_vm_delete(host['gcp_zone'], host['gcp_name'])
+
+  else:
+    if _get_last('gcp', 'prometheus'):
+      with local.cwd(ROOT_PATH / 'gcp'):
+        ansible_playbook['prometheus-clean.yml', '-i', inventory_filepath] & FG
+        _set_last('gcp', 'prometheus', False) # already cleaned so we remove flag
+
+    if _get_last('gcp', 'portainer'):
+      with local.cwd(ROOT_PATH / 'gcp'):
+        ansible_playbook['portainer-clean.yml', '-i', inventory_filepath] & FG
+        _set_last('gcp', 'portainer', False) # already cleaned so we remove flag
+
+    with local.cwd(ROOT_PATH / 'gcp'):
+      ansible_playbook['wkld-clean.yml', '-i', inventory_filepath] & FG
+      ansible_playbook['tt-clean.yml', '-i', inventory_filepath] & FG
+      ansible_playbook['swarm-clean.yml', '-i', inventory_filepath] & FG
 
 
 #--------------
