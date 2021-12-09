@@ -1503,7 +1503,7 @@ def _force_gcp_docker():
   # if image is not built, we do it
   if bool(int(os.environ.get('REBUILD_GCP_DOCKER_IMAGE',0))) or docker['images', GCP_DOCKER_IMAGE_NAME, '--format', '"{{.ID}}"']().strip() == '':
     with local.cwd(ROOT_PATH / 'gcp'):
-      docker['build', '--no-cache', '-t', GCP_DOCKER_IMAGE_NAME, '.'] & FG
+      docker['build', '-t', GCP_DOCKER_IMAGE_NAME, '.'] & FG
 
   args = list()
   args.extend(['docker', 'run', '--rm', '-it',
@@ -1517,6 +1517,9 @@ def _force_gcp_docker():
     #
     GCP_DOCKER_IMAGE_NAME
   ])
+  # force first argument to be a relative path -- important for plumbum local exec
+  sys.argv[0] = './' + sys.argv[0].rpartition('/')[-1]
+  # append arguments
   args = args + sys.argv
   # print(' '.join(args))
   subprocess.call(args)
