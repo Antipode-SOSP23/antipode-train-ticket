@@ -1265,7 +1265,7 @@ def wkld__gcp(args):
       master:
         image: {{ gcp_docker_image_namespace }}/{{ locust_docker_image_name }}
         working_dir: /mnt/locust
-        command: locust -f locustfile.py --master --master-bind-host=0.0.0.0 --master-bind-port=8089 --host http://master:8089 --expect-workers {{ workers | length }} --headless --reset-stats --only-summary --logfile {{ deploy_tag }}.err --html {{ deploy_tag }}.html --csv {{ deploy_tag }} --run-time {{ run_time }} -u {{ users }}
+        command: locust -f locustfile.py --master --master-bind-host=0.0.0.0 --master-bind-port=8089 --host http://master:8089 --expect-workers {{ workers | length }} --headless --reset-stats --only-summary --logfile {{ deploy_tag }}.err --html {{ deploy_tag }}.html --csv {{ deploy_tag }} --run-time {{ run_time }} --stop-timeout {{ stop_timeout }} -u {{ users }}
         environment:
           DEPLOY_TAG: {{ deploy_tag }}
           WORKER_ID: MASTER
@@ -1334,6 +1334,7 @@ def wkld__gcp(args):
     'tt_password': TT_PASSWORD,
     'users': args['threads'],
     'run_time': f"{args['duration']}s",
+    'stop_timeout': LOCUST_STOP_TIMEOUT_SECONDS,
     'rate': args['rate'],
   })
   docker_compose_filepath = deploy_path / 'docker-compose-locust.yml'
@@ -1700,6 +1701,7 @@ TT_USERNAME = 'fdse_microservice'
 TT_PASSWORD = '111111'
 LAST_INFO_FILE = ROOT_PATH / '.last.yml'
 LOCUST_DOCKER_IMAGE_NAME = 'locust-tt:antipode'
+LOCUST_STOP_TIMEOUT_SECONDS = 120
 SEED_MONGO_INSTANCES = {
   'ts-order-mongo': {
     'collections': ['orders'],
