@@ -627,6 +627,7 @@ def deploy__gcp(args):
 #--------------
 def run(args):
   _set_last(args['deploy_type'], 'drawback_delay', args['drawback_delay'])
+  _set_last(args['deploy_type'], 'antipode', args['antipode'])
 
   getattr(sys.modules[__name__], f"run__{args.pop('deploy_type')}")(args)
   print("[INFO] Run done!")
@@ -1814,6 +1815,7 @@ if __name__ == '__main__':
   run_parser.add_argument('-portainer', action='store_true', help="Run with portainer enabled")
   run_parser.add_argument('-detached', action='store_true', help="Run in detach mode")
   run_parser.add_argument('-drawback-delay', required=False, type=int, default=-1, help="Add delay to drawback on cancel action")
+  run_parser.add_argument('-antipode', action='store_true', help="Enable antipode")
 
   # clean application
   clean_parser = subparsers.add_parser('clean', help='Clean application')
