@@ -1185,7 +1185,7 @@ def wkld__local(args):
     'tt_username': TT_USERNAME,
     'tt_password': TT_PASSWORD,
     'workers': workers,
-    'users': args['threads'],
+    'users': args['threads'] * len(workers),
     'run_time': f"{args['duration']}s",
     'rate': args['rate'],
   })
@@ -1329,7 +1329,6 @@ def wkld__gcp(args):
     'gcp_docker_image_namespace': GCP_DOCKER_IMAGE_NAMESPACE,
     'locust_docker_image_name': LOCUST_DOCKER_IMAGE_NAME,
     'docker_compose_network': DOCKER_COMPOSE_NETWORK,
-    'workers': clients_inventory,
     'deploy_tag': tag,
     #
     'auth_service_url': _service_public_endpoint('gcp', 'ts-auth-service'),
@@ -1337,7 +1336,8 @@ def wkld__gcp(args):
     'inside_payment_service_url': _service_public_endpoint('gcp', 'ts-inside-payment-service'),
     'tt_username': TT_USERNAME,
     'tt_password': TT_PASSWORD,
-    'users': args['threads'],
+    'workers': clients_inventory,
+    'users': args['threads'] * len(clients_inventory),
     'run_time': f"{args['duration']}s",
     'stop_timeout': LOCUST_STOP_TIMEOUT_SECONDS,
     'rate': args['rate'],
