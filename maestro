@@ -1241,6 +1241,7 @@ def wkld__gcp(args):
   tag = _get_last('gcp', 'deploy_tag')
   deploy_path = ROOT_PATH / 'deploy' / tag
   config = _load_yaml(ROOT_PATH / _get_last('gcp', 'deploy_config'))
+  antipode = _load_yaml(ROOT_PATH / _get_last('gcp', 'antipode'))
   inventory = _load_inventory(deploy_path / 'inventory.cfg')
   clients_inventory = _get_inventory_group(inventory, 'clients')
 
@@ -1364,7 +1365,7 @@ def wkld__gcp(args):
     ] & FG
 
     # create gather folder
-    gather_tag = f"{tag}-{len(clients_inventory)}cli-{args['threads']}threads"
+    gather_tag = f"{tag}-{len(clients_inventory)}cli-{args['threads']}threads-antipode_{'yes' if antipode else 'no'}"
     gather_path = ROOT_PATH / 'gather' / gather_tag
     os.makedirs(gather_path, exist_ok=True)
 
