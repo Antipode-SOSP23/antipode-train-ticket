@@ -384,6 +384,7 @@ def deploy__gcp(args):
   from datetime import datetime
   from jinja2 import Environment
   import textwrap
+  import shutil
 
 
   tag = f"{datetime.now().strftime('%Y%m%d%H%M%S')}"
@@ -392,6 +393,9 @@ def deploy__gcp(args):
   # create deploy folder
   deploy_path = ROOT_PATH / 'deploy' / tag
   os.makedirs(deploy_path, exist_ok=True)
+
+  # copy ansible config to deploy dir
+  shutil.copy(ROOT_PATH / 'gcp' / 'ansible.cfg', deploy_path)
 
   # load the config and the local compose
   compose = _load_yaml(APP_PATH / 'docker-compose.yml')
