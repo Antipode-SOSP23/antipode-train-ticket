@@ -21,9 +21,8 @@ DURATION = 300
 maestro = local["./maestro"]
 #--------------
 COMBINATIONS = [
-  (4, 1000),  #✅
-  (4, 5000),  #✅
-  (4, 10000), #✅
+  # cli , threads
+  (2,     4),
 ]
 
 
@@ -31,7 +30,7 @@ COMBINATIONS = [
 # RUN
 #--------------
 # strong clean at the begining
-maestro['--gcp', 'clean', '-strong'] & FG
+# maestro['--gcp', 'clean', '-strong'] & FG
 
 for clients, threads in COMBINATIONS:
   print('[INFO] New deployment starting:')
@@ -51,4 +50,4 @@ for clients, threads in COMBINATIONS:
   print('\n[INFO] Done!')
 
 # strong clean at the end
-maestro['--gcp', 'clean', '-strong'] & FG
+# maestro['--gcp', 'clean', '-strong'] & FG
