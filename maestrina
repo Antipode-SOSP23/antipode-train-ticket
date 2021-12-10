@@ -30,6 +30,9 @@ COMBINATIONS = [
 #--------------
 # RUN
 #--------------
+# strong clean at the begining
+maestro['--gcp', 'clean', '-strong'] & FG
+
 for clients, threads in COMBINATIONS:
   print('[INFO] New deployment starting:')
   print(f"\t > clients: {clients} // threads: {threads}\n")
