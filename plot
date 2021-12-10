@@ -26,7 +26,7 @@ def plot__throughput_latency():
   gather_paths = [
     '20211210185418-2cli-6threads',
     '20211210155936-2cli-5threads',
-    '20211210154200-2cli-4threads',
+    # '20211210205438-2cli-4threads', # '20211210154200-2cli-4threads', # Weird values - curve going behind too soon?
     '20211210192932-1cli-6threads',
     '20211209233226-1cli-5threads',
     '20211209231414-1cli-4threads',

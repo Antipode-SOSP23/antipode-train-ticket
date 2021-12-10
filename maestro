@@ -652,6 +652,9 @@ def run__local(args):
   if args['drawback_delay'] > 0:
     compose['services']['ts-cancel-service']['environment']['DELAY_DRAWBACK_SEC'] = args['drawback_delay']
 
+  # edit the antipode enabled flag
+  compose['services']['ts-cancel-service']['environment']['ANTIPODE_ENABLED'] = str(args['antipode']).lower()
+
   # move all mongo instances to memory
   for m in [ n for n,s in compose['services'].items() if s['image'] == 'mongo' ]:
     service = compose['services'][m]
@@ -729,6 +732,9 @@ def run__gcp(args):
 
   if args['drawback_delay'] > 0:
     compose['services']['ts-cancel-service']['environment']['DELAY_DRAWBACK_SEC'] = args['drawback_delay']
+
+  # edit the antipode enabled flag
+  compose['services']['ts-cancel-service']['environment']['ANTIPODE_ENABLED'] = str(args['antipode']).lower()
 
   # save (changed) docker-compose
   docker_compose_filepath = deploy_path / 'docker-compose.yml'
@@ -1101,11 +1107,6 @@ def seed__gcp(args):
 # WORKLOAD
 #--------------
 def wkld(args):
-  drawback_delay = _get_last(args['deploy_type'], 'drawback_delay')
-  if drawback_delay is not None and drawback_delay > 0:
-    print(f"[INFO] Drawback delay found: increasing wkld duration by {drawback_delay}s")
-    args['duration'] += drawback_delay
-
   _set_last(args['deploy_type'], 'threads', args['threads'])
 
   getattr(sys.modules[__name__], f"wkld__{args.pop('deploy_type')}")(args)
