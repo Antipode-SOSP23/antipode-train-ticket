@@ -21,8 +21,27 @@ DURATION = 300
 maestro = local["./maestro"]
 #--------------
 COMBINATIONS = [
-  # cli , threads
-  (2,     4),
+  # antipode, cli , threads
+  # ------------------------
+  # (True,      2,    6),
+  # (True,      2,    5),
+  # (True,      2,    4),
+  # (True,      1,    6),
+  # (True,      1,    5),
+  # (True,      1,    4),
+  # (True,      1,    3),
+  # (True,      1,    2),
+  (True,      1,    1),
+  # baseline
+  # (False,     2,    6),
+  # (False,     2,    5),
+  # (False,     2,    4),
+  # (False,     1,    6),
+  # (False,     1,    5),
+  # (False,     1,    4),
+  # (False,     1,    3),
+  # (False,     1,    2),
+  # (False,     1,    1),
 ]
 
 
@@ -32,13 +51,16 @@ COMBINATIONS = [
 # strong clean at the begining
 # maestro['--gcp', 'clean', '-strong'] & FG
 
-for clients, threads in COMBINATIONS:
+for antipode, clients, threads in COMBINATIONS:
   print('[INFO] New deployment starting:')
-  print(f"\t > clients: {clients} // threads: {threads}\n")
+  print(f"\t > antipode: {antipode} // clients: {clients} // threads: {threads}\n")
 
   # deploy configuration
   maestro['--gcp', 'deploy', '-config', DEFAULT_CONFIG, '-clients', clients] & FG
-  maestro['--gcp', 'run', '-portainer', '-prometheus'] & FG
+  run_args = ['--gcp', 'run']
+  if antipode:
+    run_args.append('-antipode')
+  maestro[run_args] & FG
   maestro['--gcp', 'wkld', '-d', DURATION, '-c', clients, '-t', threads] & FG
 
   # take prometheus screenshot

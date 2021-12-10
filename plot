@@ -24,6 +24,9 @@ def _save_file():
 
 def plot__throughput_latency():
   gather_paths = [
+    #-----------
+    # Baseline
+    #-----------
     '20211210185418-2cli-6threads',
     '20211210155936-2cli-5threads',
     # '20211210205438-2cli-4threads', # '20211210154200-2cli-4threads', # Weird values - curve going behind too soon?
@@ -33,6 +36,9 @@ def plot__throughput_latency():
     '20211209225617-1cli-3threads',
     '20211209223805-1cli-2threads',
     '20211209221754-1cli-1threads',
+    #-----------
+    # Antipode
+    #-----------
   ]
 
   data = []

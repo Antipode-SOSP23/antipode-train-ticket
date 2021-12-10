@@ -1241,7 +1241,7 @@ def wkld__gcp(args):
   tag = _get_last('gcp', 'deploy_tag')
   deploy_path = ROOT_PATH / 'deploy' / tag
   config = _load_yaml(ROOT_PATH / _get_last('gcp', 'deploy_config'))
-  antipode = _load_yaml(ROOT_PATH / _get_last('gcp', 'antipode'))
+  antipode = _get_last('gcp', 'antipode')
   inventory = _load_inventory(deploy_path / 'inventory.cfg')
   clients_inventory = _get_inventory_group(inventory, 'clients')
 
