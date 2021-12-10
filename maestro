@@ -389,6 +389,7 @@ def deploy__gcp(args):
 
   tag = f"{datetime.now().strftime('%Y%m%d%H%M%S')}"
   _set_last('gcp', 'deploy_tag', tag)
+  _set_last('gcp', 'clients', args['clients'])
 
   # create deploy folder
   deploy_path = ROOT_PATH / 'deploy' / tag
@@ -1103,6 +1104,8 @@ def wkld(args):
   if drawback_delay is not None and drawback_delay > 0:
     print(f"[INFO] Drawback delay found: increasing wkld duration by {drawback_delay}s")
     args['duration'] += drawback_delay
+
+  _set_last(args['deploy_type'], 'threads', args['threads'])
 
   getattr(sys.modules[__name__], f"wkld__{args.pop('deploy_type')}")(args)
   print("[INFO] Workdload done!")
