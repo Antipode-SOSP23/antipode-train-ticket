@@ -69,17 +69,21 @@ def plot__throughput_latency():
     })
 
   # transform dict into dataframe
-  df = pd.DataFrame(data).sort_values(by=['users'])
+  df = pd.DataFrame(data).sort_values(by=['type','users'])
   pp(df)
 
   # Apply the default theme
   sns.set_theme(style='ticks')
   plt.rcParams["figure.figsize"] = [6,5]
+  color_palette = sns.color_palette("deep",2)[::-1]
+  f = sns.lineplot(data=df, sort=False, x='throughput', y='latency_90', hue='type', palette=color_palette, style='type', markers=False, dashes=False, linewidth = 3)
 
-  sns.lineplot(data=df, sort=False, x='throughput', y='latency_90', hue='type', style='type', markers=False, dashes=False, linewidth = 3)
-
+  # remove legeng title
+  f.legend_.set_title(None)
+  # set axis labels
   plt.xlabel("Throughput (req/s)")
-  plt.ylabel("Latency (ms)\n$\it{Client\ side}$")
+  # plt.ylabel("Latency (ms)\n$\it{Client\ side}$")
+  plt.ylabel("Latency (ms)")
 
   _save_file()
 
