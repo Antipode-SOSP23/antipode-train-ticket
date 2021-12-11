@@ -3,7 +3,6 @@ from locust import HttpUser, task
 import locust.stats
 # from locust_plugins import constant_total_ips
 import os
-from pathlib import Path
 import requests
 import yaml
 
@@ -52,8 +51,9 @@ class TrainTicket(HttpUser):
     # cancel order
     self.client.get(f"{CANCEL_SERVICE_URL}/api/v1/cancelservice/cancel/{order_id}/{self.user_id}", headers=headers, name=f"/api/v1/cancelservice/cancel/:order_id/:user_id")
     # then fetch the money to check if any inconsistency between drawbacks and cancelling the order
-    with self.client.get(f"{INSIDE_PAYMENT_SERVICE_URL}/api/v1/inside_pay_service/inside_payment/money", headers=headers, catch_response=True) as r:
-      consistent = len([e for e in r.json()['data'] if e['orderId'] == order_id ]) != 0
+    with self.client.get(f"{INSIDE_PAYMENT_SERVICE_URL}/api/v1/inside_pay_service/inside_payment/money/{order_id}", name=f"/api/v1/inside_pay_service/inside_payment/money/:order_id", headers=headers, catch_response=True) as r:
+      data = (r.json()['data'] or [])
+      consistent = len([e for e in data if e['orderId'] == order_id and e['type'] == 'D' ]) != 0
       if consistent:
         r.success()
       else:
