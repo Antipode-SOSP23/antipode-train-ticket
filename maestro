@@ -1156,7 +1156,6 @@ def wkld__local(args):
           INSIDE_PAYMENT_SERVICE_URL: {{ inside_payment_service_url }}
           TT_USERNAME: {{ tt_username }}
           TT_PASSWORD: {{ tt_password }}
-          RATE: {{ rate }}
         ports:
           - 8089:8089
         volumes:
@@ -1175,7 +1174,6 @@ def wkld__local(args):
           INSIDE_PAYMENT_SERVICE_URL: {{ inside_payment_service_url }}
           TT_USERNAME: {{ tt_username }}
           TT_PASSWORD: {{ tt_password }}
-          RATE: {{ rate }}
         volumes:
           - ./:/mnt/locust
       {% endfor %}
@@ -1192,7 +1190,6 @@ def wkld__local(args):
     'workers': workers,
     'users': args['threads'] * len(workers),
     'run_time': f"{args['duration']}s",
-    'rate': args['rate'],
   })
   docker_compose_filepath = deploy_path / 'docker-compose-locust.yml'
   with open(docker_compose_filepath, 'w') as f:
@@ -1285,7 +1282,6 @@ def wkld__gcp(args):
           INSIDE_PAYMENT_SERVICE_URL: {{ inside_payment_service_url }}
           TT_USERNAME: {{ tt_username }}
           TT_PASSWORD: {{ tt_password }}
-          RATE: {{ rate }}
         ports:
           - 8089:8089
         volumes:
@@ -1315,7 +1311,6 @@ def wkld__gcp(args):
           INSIDE_PAYMENT_SERVICE_URL: {{ inside_payment_service_url }}
           TT_USERNAME: {{ tt_username }}
           TT_PASSWORD: {{ tt_password }}
-          RATE: {{ rate }}
         volumes:
           - /code/wkld:/mnt/locust
         networks:
@@ -1346,7 +1341,6 @@ def wkld__gcp(args):
     'users': args['threads'] * len(clients_inventory),
     'run_time': f"{args['duration']}s",
     'stop_timeout': LOCUST_STOP_TIMEOUT_SECONDS,
-    'rate': args['rate'],
   })
   docker_compose_filepath = deploy_path / 'docker-compose-locust.yml'
   with open(docker_compose_filepath, 'w') as f:
@@ -1834,7 +1828,6 @@ if __name__ == '__main__':
   wkld_parser.add_argument('-c', '--clients', type=int, default=1, help="Number of clients to run on")
   wkld_parser.add_argument('-t', '--threads', type=int, default=1, help="Number of threads")
   wkld_parser.add_argument('-d', '--duration', type=int, default=1, help="Duration in seconds")
-  wkld_parser.add_argument('-r', '--rate', type=int, default=99999999, help="Work rate (throughput) in request per second")
 
   # ssh
   ssh_parser = subparsers.add_parser('ssh', help='SSH into machines')

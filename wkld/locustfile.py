@@ -1,7 +1,7 @@
 from locust import events
 from locust import HttpUser, task
 import locust.stats
-from locust_plugins import constant_total_ips
+# from locust_plugins import constant_total_ips
 import os
 from pathlib import Path
 import requests
@@ -17,7 +17,6 @@ TT_USERNAME = os.environ['TT_USERNAME']
 TT_PASSWORD = os.environ['TT_PASSWORD']
 DEPLOY_TAG = os.environ['DEPLOY_TAG']
 WORKER_ID = os.environ['WORKER_ID']
-RATE = int(os.environ['RATE'])
 
 @events.quitting.add_listener
 def _(environment, **kw):
@@ -30,7 +29,7 @@ class TrainTicket(HttpUser):
   auth_token = None
   user_id = None
   order_ids = []
-  wait_time = constant_total_ips(RATE)
+  # wait_time = constant_total_ips(RATE)
 
   def on_start(self):
     # load order_ids yaml
