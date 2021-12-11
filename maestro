@@ -98,7 +98,7 @@ def info(args):
     print(f"Admin:\t\t{_service_public_endpoint(args['deploy_type'], 'ts-ui-dashboard')}/adminlogin.html\t(admin:222222)")
     print(f"Jaeger:\t\t{_service_public_endpoint(args['deploy_type'], 'jaeger')}")
     print(f"RabbitMQ:\t{_service_public_endpoint(args['deploy_type'], 'rabbitmq')}\t\t\t(guest:guest)")
-    print(f"Portainer:\t{_service_public_endpoint(args['deploy_type'], 'portainer')}\t\t\t(admin/antipode)")
+    print(f"Portainer:\t{_service_public_endpoint(args['deploy_type'], 'portainer')}\t\t(admin/antipode)")
     print(f"Prometheus:\t{_service_public_endpoint(args['deploy_type'], 'prometheus')}/{PROMETHEUS_GRAPH_URL}")
     print(f"API Docs:")
     print(f"\tts-auth-service:\t\t{_service_public_endpoint(args['deploy_type'], 'ts-auth-service')}/swagger-ui.html#/user-controller/")
@@ -209,7 +209,8 @@ def build__local(args):
 
   with local.cwd(APP_PATH):
     # remove target directories - maven was not cleaning
-    rm['-rf', find['.', '-type', 'd', '-name', 'target']().split('\n')] & FG
+    target_dirs = find['.', '-type', 'd', '-name', 'target']().split('\n')
+    rm['-rf', target_dirs] & FG
     # build from source
     # ref: https://github.com/FudanSELab/train-ticket/wiki/Installation-Guide
     mvn = docker['run', '--rm', '-ti',
@@ -226,7 +227,7 @@ def build__local(args):
 
   # build locust image
   with local.cwd(ROOT_PATH / 'wkld'):
-    docker['build', '--no-cache', '-t', LOCUST_DOCKER_IMAGE_NAME, '.'] & FG
+    docker['build', '-t', LOCUST_DOCKER_IMAGE_NAME, '.'] & FG
 
 def build__gcp(args):
   # build local images first
