@@ -205,11 +205,11 @@ def build(args):
 
 def build__local(args):
   from plumbum import local, FG
-  from plumbum.cmd import docker, docker_compose, find
+  from plumbum.cmd import docker, docker_compose, find, rm
 
   with local.cwd(APP_PATH):
     # remove target directories - maven was not cleaning
-    find['.', '-type', 'd', '-name', 'target', '-exec', 'rm', '-rf', '{}', '+'] & FG
+    rm['-rf', find['.', '-type', 'd', '-name', 'target']().split('\n')] & FG
     # build from source
     # ref: https://github.com/FudanSELab/train-ticket/wiki/Installation-Guide
     mvn = docker['run', '--rm', '-ti',
@@ -221,12 +221,12 @@ def build__local(args):
       'maven:3-openjdk-8-slim',
       'mvn']
     mvn['clean', 'package', '-Dmaven.test.skip=true'] & FG
-    time.sleep(2) # wait in between commands due to jar generation delay??
+    time.sleep(5) # wait in between commands due to jar generation delay??
     docker_compose['build'] & FG
 
   # build locust image
   with local.cwd(ROOT_PATH / 'wkld'):
-    docker['build', '-t', LOCUST_DOCKER_IMAGE_NAME, '.'] & FG
+    docker['build', '--no-cache', '-t', LOCUST_DOCKER_IMAGE_NAME, '.'] & FG
 
 def build__gcp(args):
   # build local images first
