@@ -25,17 +25,22 @@ def _(environment, **kw):
   # http://docs.locust.io/en/stable/running-without-web-ui.html#controlling-the-exit-code-of-the-locust-process
   environment.process_exit_code = 0
 
+ORDER_IDS = []
+if WORKER_ID != 'MASTER':
+  # load order_ids yaml
+  with open(f"{DEPLOY_TAG}_seed_{WORKER_ID}.yml", 'r') as f:
+    ORDER_IDS = (yaml.safe_load(f) or [])
+    ORDER_IDS.sort()
+
 class TrainTicket(HttpUser):
   auth_token = None
   user_id = None
-  order_ids = []
   # wait_time = constant_total_ips(RATE)
 
   def on_start(self):
-    # load order_ids yaml
-    with open(f"{DEPLOY_TAG}_seed_{WORKER_ID}.yml", 'r') as f:
-      self.order_ids = (yaml.safe_load(f) or {})
+    global ORDER_IDS
 
+    print(f"[INFO] Number of seeds available: {len(ORDER_IDS)}")
     # login
     auth_url = f"{AUTH_SERVICE_URL}/api/v1/users/login"
     params = { "username": TT_USERNAME, "password": TT_PASSWORD, "verificationCode": "" }
@@ -45,10 +50,12 @@ class TrainTicket(HttpUser):
 
   @task
   def cancel_order(self):
+    global ORDER_IDS
+
     # build header file
     headers = { 'Authorization': 'Bearer ' + self.auth_token }
     # remove from orders - this is atomic so client threads are not an issue
-    order_id = self.order_ids.pop()
+    order_id = ORDER_IDS.pop()
     # cancel order
     with self.client.get(f"{CANCEL_SERVICE_URL}/api/v1/cancelservice/cancel/{order_id}/{self.user_id}", headers=headers, name=f"/api/v1/cancelservice/cancel/:order_id/:user_id", catch_response=True) as r:
       if r.json()['status'] == 1:
