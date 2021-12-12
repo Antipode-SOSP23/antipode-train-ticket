@@ -5,6 +5,7 @@ import locust.stats
 import os
 import requests
 import yaml
+# from pprint import pprint as pp
 
 
 locust.stats.PERCENTILES_TO_REPORT = [0.25, 0.5, 0.75,  0.9, 0.95,  0.99, 0.999, 0.9999, 1.0]
@@ -49,11 +50,16 @@ class TrainTicket(HttpUser):
     # remove from orders - this is atomic so client threads are not an issue
     order_id = self.order_ids.pop()
     # cancel order
-    self.client.get(f"{CANCEL_SERVICE_URL}/api/v1/cancelservice/cancel/{order_id}/{self.user_id}", headers=headers, name=f"/api/v1/cancelservice/cancel/:order_id/:user_id")
+    with self.client.get(f"{CANCEL_SERVICE_URL}/api/v1/cancelservice/cancel/{order_id}/{self.user_id}", headers=headers, name=f"/api/v1/cancelservice/cancel/:order_id/:user_id", catch_response=True) as r:
+      if r.json()['status'] == 1:
+        r.success()
+      else:
+        r.failure("Cancel failed")
+        return
     # then fetch the money to check if any inconsistency between drawbacks and cancelling the order
     with self.client.get(f"{INSIDE_PAYMENT_SERVICE_URL}/api/v1/inside_pay_service/inside_payment/money/{order_id}", name=f"/api/v1/inside_pay_service/inside_payment/money/:order_id", headers=headers, catch_response=True) as r:
       data = (r.json()['data'] or [])
-      consistent = len([e for e in data if e['orderId'] == order_id and e['type'] == 'D' ]) != 0
+      consistent = (len([e for e in data if e['orderId'] == order_id and e['type'] == 'D' ]) != 0)
       if consistent:
         r.success()
       else:
