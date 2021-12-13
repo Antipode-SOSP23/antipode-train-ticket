@@ -1747,7 +1747,7 @@ SEED_MONGO_INSTANCES = {
     'collections': ['orders'],
   },
   'ts-inside-payment-mongo': {
-    'collections': ['payment'],
+    'collections': ['payment', 'addMoney'],
   }
 }
 SEED_TO_DURATION_FACTOR = 35 # in 1 second it does less than this
