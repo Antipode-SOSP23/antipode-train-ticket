@@ -60,7 +60,7 @@ def create_order_and_pay(args):
       "status": 0, # NOT PAID
     }
     r = requests.post(create_order_url, headers=headers, json=order_params)
-    if r.status_code != 200 or r.json() is None:
+    if r.status_code != 200 or r.json() is None or r.json()['data'] is None:
       print("[ERROR] Failed to create order")
       return None
 
