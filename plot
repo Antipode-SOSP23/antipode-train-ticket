@@ -11,10 +11,13 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import inspect
 from datetime import datetime
+import argparse
+import yaml
 
 
-ROOT_PATH = Path(os.path.abspath(os.path.dirname(sys.argv[0])))
-
+#--------------
+# HELPERS
+#--------------
 def _save_file():
   plt.tight_layout()
   plot_name = inspect.stack()[1][3].split('__')[1]
@@ -22,25 +25,11 @@ def _save_file():
   plt.savefig(ROOT_PATH / 'plots' / plot_filename, bbox_inches = 'tight', pad_inches = 0.1)
   print(f"[INFO] Saved plot '{plot_filename}'")
 
-def plot__throughput_latency():
-  gather_paths = [
-    #-----------
-    # Baseline
-    #-----------
-    '20211210185418-2cli-6threads',
-    '20211210155936-2cli-5threads',
-    # '20211210205438-2cli-4threads', # '20211210154200-2cli-4threads', # Weird values - curve going behind too soon?
-    '20211210192932-1cli-6threads',
-    '20211209233226-1cli-5threads',
-    '20211209231414-1cli-4threads',
-    '20211209225617-1cli-3threads',
-    '20211209223805-1cli-2threads',
-    '20211209221754-1cli-1threads',
-    #-----------
-    # Antipode
-    #-----------
-  ]
 
+#--------------
+# PLOTS
+#--------------
+def plot__throughput_latency(gather_paths):
   data = []
   for gather_tag in gather_paths:
     gather_path = ROOT_PATH / 'gather' / gather_tag
@@ -57,12 +46,12 @@ def plot__throughput_latency():
 
     # get data from csvs
     csv_df = pd.read_csv(csv_path)
-    csv_df = csv_df.query('Name == "Aggregated"')[['Request Count', 'Failure Count', '90%', 'Requests/s']]
+    csv_df = csv_df.query('Name == "Aggregated"')[['Request Count', 'Failure Count', '50%', '90%', 'Requests/s']]
     csv_history_df = pd.read_csv(csv_history_path)
     csv_history_df = csv_history_df.iloc[-2]
 
     data.append({
-      'type': 'Antipode' if antipode_enabled else 'Baseline',
+      'type': 'Antipode' if antipode_enabled else 'Original',
       'users': csv_history_df['User Count'],
       'latency_90': csv_df['90%'].values[0],
       'throughput': csv_df['Requests/s'].values[0],
@@ -74,9 +63,16 @@ def plot__throughput_latency():
 
   # Apply the default theme
   sns.set_theme(style='ticks')
-  plt.rcParams["figure.figsize"] = [6,5]
-  color_palette = sns.color_palette("deep",2)[::-1]
-  f = sns.lineplot(data=df, sort=False, x='throughput', y='latency_90', hue='type', palette=color_palette, style='type', markers=False, dashes=False, linewidth = 3)
+  plt.rcParams["figure.figsize"] = [6,2.75]
+  plt.rcParams["figure.dpi"] = 600
+
+  # build color palette
+  num_types = df['type'].nunique()
+  color_palette = sns.color_palette("deep",2)[::-1][0:num_types]
+
+  f = sns.lineplot(data=df, sort=False, x='throughput', y='latency_90', hue='type', palette=color_palette, style='type', markers=True, dashes=False, linewidth = 3)
+
+  # f.set_yscale('log')
 
   # remove legeng title
   f.legend_.set_title(None)
@@ -88,5 +84,27 @@ def plot__throughput_latency():
   _save_file()
 
 
+#--------------
+# CONSTANTS
+#--------------
+ROOT_PATH = Path(os.path.abspath(os.path.dirname(sys.argv[0])))
+PLOT_NAMES = [name.split('plot__')[1] for name,_ in inspect.getmembers(sys.modules[__name__]) if name.startswith('plot__')]
 
-plot__throughput_latency()
+
+#--------------
+# CLI
+#--------------
+if __name__ == '__main__':
+  # parse arguments
+  main_parser = argparse.ArgumentParser()
+  main_parser.add_argument('config', type=argparse.FileType('r', encoding='UTF-8'), help="Plot config to load")
+  main_parser.add_argument('--plots', nargs='*', choices=PLOT_NAMES, default=PLOT_NAMES, required=False, help="Plot only the passed plot names")
+
+  # parse args
+  args = vars(main_parser.parse_args())
+  # load yaml
+  args['config'] = (yaml.safe_load(args['config']) or {})
+
+  for plot_name in set(args['config'].keys()) & set(args['plots']):
+    gather_paths = args['config'][plot_name]
+    getattr(sys.modules[__name__], f"plot__{plot_name}")(gather_paths)
