@@ -51,21 +51,29 @@ COMBINATIONS = [
 # strong clean at the begining
 # maestro['--gcp', 'clean', '-strong'] & FG
 
+gathered_dirs = []
 for antipode, clients, threads in COMBINATIONS:
   print('[INFO] New deployment starting:')
   print(f"\t > antipode: {antipode} // clients: {clients} // threads: {threads}\n")
 
   # deploy configuration
   maestro['--gcp', 'deploy', '-config', DEFAULT_CONFIG, '-clients', clients] & FG
+
+  # run configuration with the proper arguments
   run_args = ['--gcp', 'run']
+  # run_args = ['--gcp', 'run', '-prometheus', '-portainer']
   if antipode:
     run_args.append('-antipode')
   maestro[run_args] & FG
-  maestro['--gcp', 'wkld', '-d', DURATION, '-c', clients, '-t', threads] & FG
 
-  # take prometheus screenshot
+  # run the workload
+  maestro['--gcp', 'wkld', '-d', DURATION, '-c', clients, '-t', threads] & FG
+  # find out the gather dir
+  gathered_dirs.append(max(Path(ROOT_PATH / 'gather').glob('*/'), key=os.path.getmtime))
+
+  # Look at info
   # maestro['--gcp', 'info', '-links'] & FG
-  # input("[WAIT] Observer prometheus output. Press enter when finished ...")
+  # input("[WAIT] Observe output ....")
 
   # soft clean
   maestro['--gcp', 'clean'] & FG
@@ -73,3 +81,6 @@ for antipode, clients, threads in COMBINATIONS:
 
 # strong clean at the end
 # maestro['--gcp', 'clean', '-strong'] & FG
+
+print("[INFO] Gathered results:")
+print('\n'.join([p.name for p in gathered_dirs]))
