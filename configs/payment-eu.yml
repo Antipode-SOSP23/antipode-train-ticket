@@ -1,0 +1,101 @@
+clients:
+  - zone: us-central1-a
+    machine_type: e2-medium
+
+manager:
+  name: manager-tt
+  hostname: manager.tt
+  zone: us-central1-a
+  machine_type: e2-standard-4
+
+
+nodes:
+  others:
+    hostname: others.tt
+    zone: us-central1-a
+    machine_type: e2-standard-8
+  ts-cancel-service:
+    hostname: ts-cancel-service.tt
+    zone: us-central1-a
+    machine_type: e2-standard-8
+  ts-inside-payment-service:
+    hostname: ts-inside-payment-service.tt
+    zone: europe-west3-a
+    machine_type: e2-standard-8
+  ts-order-service:
+    hostname: ts-order-service.tt
+    zone: us-central1-a
+    machine_type: e2-standard-8
+
+services:
+  rabbitmq: others
+  jaeger: others
+  redis: others
+  ts-ui-dashboard: others
+  ts-auth-service: others
+  ts-auth-mongo: others
+  ts-user-service: others
+  ts-user-mongo: others
+  ts-verification-code-service: others
+  ts-account-mongo: others
+  ts-route-service: others
+  ts-route-mongo: others
+  ts-contacts-service: others
+  ts-contacts-mongo: others
+  ts-order-service: ts-order-service
+  ts-order-mongo: ts-order-service
+  ts-order-other-service: others
+  ts-order-other-mongo: others
+  ts-config-service: others
+  ts-config-mongo: others
+  ts-station-service: others
+  ts-station-mongo: others
+  ts-train-service: others
+  ts-train-mongo: others
+  ts-travel-service: others
+  ts-travel-mongo: others
+  ts-travel2-service: others
+  ts-travel2-mongo: others
+  ts-preserve-service: others
+  ts-preserve-other-service: others
+  ts-basic-service: others
+  ts-ticketinfo-service: others
+  ts-price-service: others
+  ts-price-mongo: others
+  ts-notification-mongo: others
+  ts-notification-service: others
+  ts-security-service: others
+  ts-security-mongo: others
+  ts-inside-payment-service: ts-inside-payment-service
+  ts-inside-payment-mongo: ts-inside-payment-service
+  ts-execute-service: others
+  ts-payment-service: others
+  ts-payment-mongo: others
+  ts-rebook-service: others
+  ts-rebook-mongo: others
+  ts-cancel-service: ts-cancel-service
+  ts-assurance-service: others
+  ts-assurance-mongo: others
+  ts-seat-service: others
+  ts-travel-plan-service: others
+  ts-ticket-office-service: others
+  ts-ticket-office-mongo: others
+  ts-news-service: others
+  ts-news-mongo: others
+  ts-voucher-mysql: others
+  ts-voucher-service: others
+  ts-food-map-service: others
+  ts-food-map-mongo: others
+  ts-route-plan-service: others
+  ts-food-service: others
+  ts-consign-service: others
+  ts-consign-mongo: others
+  ts-consign-price-service: others
+  ts-consign-price-mongo: others
+  ts-food-mongo: others
+  ts-admin-basic-info-service: others
+  ts-admin-order-service: others
+  ts-admin-route-service: others
+  ts-admin-travel-service: others
+  ts-admin-user-service: others
+  ts-avatar-service: others
