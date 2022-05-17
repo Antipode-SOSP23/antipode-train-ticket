@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 
 from pathlib import Path
-from pprint import pp
+from pprint import pprint as pp
 import os
 import sys
-import yaml
 import pandas as pd
 import matplotlib
 import matplotlib.pyplot as plt
@@ -65,6 +64,7 @@ def plot__throughput_latency(gather_paths):
   sns.set_theme(style='ticks')
   plt.rcParams["figure.figsize"] = [6,2.75]
   plt.rcParams["figure.dpi"] = 600
+  plt.rcParams['axes.labelsize'] = 'small'
 
   # build color palette
   num_types = df['type'].nunique()
@@ -83,6 +83,112 @@ def plot__throughput_latency(gather_paths):
 
   _save_file()
 
+
+def plot__throughput_latency_with_consistency_window(gather_paths):
+  data = []
+  for gather_tag in gather_paths:
+    gather_path = ROOT_PATH / 'gather' / gather_tag
+
+    # open last file
+    with open(gather_path / 'last.yml', 'r') as f:
+      last_info = (yaml.safe_load(f) or {})
+
+    # tags
+    deploy_tag = last_info['deploy_tag']
+    antipode_enabled = last_info.get('antipode', False)
+    csv_path = gather_path / f"{deploy_tag}_stats.csv"
+    csv_history_path = gather_path / f"{deploy_tag}_stats_history.csv"
+
+    # get data from csvs
+    csv_df = pd.read_csv(csv_path)
+    csv_df = csv_df.query('Name == "Aggregated"')[['Request Count', 'Failure Count', '50%', '90%', 'Requests/s']]
+    csv_history_df = pd.read_csv(csv_history_path)
+    csv_history_df = csv_history_df.iloc[-2]
+
+    data.append({
+      'type': 'Antipode' if antipode_enabled else 'Original',
+      'users': csv_history_df['User Count'],
+      'latency_90': csv_df['90%'].values[0],
+      'throughput': csv_df['Requests/s'].values[0],
+    })
+
+  # transform dict into dataframe
+  df = pd.DataFrame(data).sort_values(by=['type','users'])
+
+  # parse consistency window for PEAK CLIENTS
+  PEAK_CLIENTS=10
+  cw_data = {
+    '# Users': f"{PEAK_CLIENTS} clients",
+    'Original': df[(df['type'] == 'Original') & (df['users'] == PEAK_CLIENTS)]['latency_90'].values[0],
+    'Antipode': df[(df['type'] == 'Antipode') & (df['users'] == PEAK_CLIENTS)]['latency_90'].values[0],
+  }
+  # for each Baseline / Antipode pair we take the Baseline out of antipode so
+  # stacked bars are presented correctly
+  cw_data['Antipode'] = max(0, cw_data['Antipode'] - cw_data['Original'])
+  cw_df = pd.DataFrame.from_records([cw_data]).set_index('# Users')
+
+  pp(df)
+  pp(cw_df)
+
+  # Apply the default theme
+  sns.set_theme(style='ticks')
+  plt.rcParams["figure.figsize"] = [6,2.75]
+  plt.rcParams["figure.dpi"] = 600
+  plt.rcParams['axes.labelsize'] = 'small'
+
+  # build color palette
+  num_types = df['type'].nunique()
+  color_palette = sns.color_palette("deep",2)[::-1][0:num_types]
+
+  # build the subplots
+  fig, axes = plt.subplots(1, 2, gridspec_kw={'wspace':0.05, 'hspace':0.23, 'width_ratios': [4, 1]})
+
+  #---------------
+  # Throughput / Latency
+  #---------------
+  sns.lineplot(ax=axes[0], data=df, sort=False, x='throughput', y='latency_90', hue='type', palette=color_palette, style='type', markers=True, dashes=False, linewidth = 3)
+  # remove legeng title
+  axes[0].legend_.set_title(None)
+  # set axis labels
+  axes[0].set_xlabel("Throughput (req/s)")
+  # plt.ylabel("Latency (ms)\n$\it{Client\ side}$")
+  axes[0].set_ylabel("Latency (ms)")
+
+  #---------------
+  # Consistency window
+  #---------------
+  cw_df.plot(ax=axes[1], kind='bar', stacked=True, logy=False, width=0.4)
+
+  # plot baseline bar
+  axes[1].bar_label(axes[1].containers[0], label_type='center', fontsize=8, weight='bold', color='white')
+  # plot overhead bar
+  axes[1].bar_label(axes[1].containers[1], labels=[ f"+ {round(e)}" for e in axes[1].containers[1].datavalues ],
+    label_type='edge', padding=-1, fontsize=8, weight='bold', color='black')
+
+  # slightly increase ylim to fix bar label
+  axes[1].set_ylim(bottom=0, top=cw_df.max().max() * 1.25)
+
+  # set axis labels
+  axes[1].set_ylabel(r'Consistency Window (ms)')
+  axes[1].set_xlabel('')
+
+  # remove legend
+  axes[1].get_legend().remove()
+
+  # remove xaxis ticks and labels
+  axes[1].axes.get_xaxis().set_visible(False)
+
+  # place yticks on the right
+  axes[1].yaxis.tick_right()
+
+  axes[1].set_title(f"{PEAK_CLIENTS} clients",loc='right',fontdict={'fontsize': 'xx-small'}, style='italic')
+
+  axes[1].set_ylabel('Consistency Window (ms)')
+  axes[1].yaxis.set_label_position('right')
+  axes[1].set_title('')
+
+
+  _save_file()
 
 #--------------
 # CONSTANTS
