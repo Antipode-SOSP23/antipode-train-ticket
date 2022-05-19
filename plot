@@ -7,6 +7,7 @@ import sys
 import pandas as pd
 import matplotlib
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MultipleLocator
 import seaborn as sns
 import inspect
 from datetime import datetime
@@ -118,21 +119,21 @@ def plot__throughput_latency_with_consistency_window(gather_paths):
   # parse consistency window for PEAK CLIENTS
   PEAK_CLIENTS=10
   cw_data = {
-    '# Users': f"{PEAK_CLIENTS} clients",
+    'Throughput': r'$\approx$360',
     'Original': df[(df['type'] == 'Original') & (df['users'] == PEAK_CLIENTS)]['latency_90'].values[0],
     'Antipode': df[(df['type'] == 'Antipode') & (df['users'] == PEAK_CLIENTS)]['latency_90'].values[0],
   }
   # for each Baseline / Antipode pair we take the Baseline out of antipode so
   # stacked bars are presented correctly
   cw_data['Antipode'] = max(0, cw_data['Antipode'] - cw_data['Original'])
-  cw_df = pd.DataFrame.from_records([cw_data]).set_index('# Users')
+  cw_df = pd.DataFrame.from_records([cw_data]).set_index('Throughput')
 
   pp(df)
   pp(cw_df)
 
   # Apply the default theme
   sns.set_theme(style='ticks')
-  plt.rcParams["figure.figsize"] = [6,2.75]
+  plt.rcParams["figure.figsize"] = [6,2.25]
   plt.rcParams["figure.dpi"] = 600
   plt.rcParams['axes.labelsize'] = 'small'
 
@@ -153,6 +154,8 @@ def plot__throughput_latency_with_consistency_window(gather_paths):
   axes[0].set_xlabel("Throughput (req/s)")
   # plt.ylabel("Latency (ms)\n$\it{Client\ side}$")
   axes[0].set_ylabel("Latency (ms)")
+  # for yaxis to tick each 25rps
+  axes[0].yaxis.set_major_locator(MultipleLocator(base=25.0))
 
   #---------------
   # Consistency window
@@ -175,13 +178,13 @@ def plot__throughput_latency_with_consistency_window(gather_paths):
   # remove legend
   axes[1].get_legend().remove()
 
-  # remove xaxis ticks and labels
-  axes[1].axes.get_xaxis().set_visible(False)
+  # rotate xaxis ticks
+  axes[1].tick_params(axis='x', labelrotation=0)
 
   # place yticks on the right
   axes[1].yaxis.tick_right()
 
-  axes[1].set_title(f"{PEAK_CLIENTS} clients",loc='right',fontdict={'fontsize': 'xx-small'}, style='italic')
+  axes[1].set_title(f"peak req/s",loc='right',fontdict={'fontsize': 'xx-small'}, style='italic')
 
   axes[1].set_ylabel('Consistency Window (ms)')
   axes[1].yaxis.set_label_position('right')
