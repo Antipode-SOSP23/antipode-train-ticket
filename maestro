@@ -205,12 +205,13 @@ def build(args):
 
 def build__local(args):
   from plumbum import local, FG
-  from plumbum.cmd import docker, docker_compose, find, rm
+  from plumbum.cmd import docker, docker_compose, find, rm, sudo
 
   with local.cwd(APP_PATH):
     # remove target directories - maven was not cleaning
     target_dirs = find['.', '-type', 'd', '-name', 'target']().split('\n')
-    rm['-rf', target_dirs] & FG
+    # sudo needed since docker creates things as root
+    sudo[rm['-rf', target_dirs]] & FG
     # build from source
     # ref: https://github.com/FudanSELab/train-ticket/wiki/Installation-Guide
     mvn = docker['run', '--rm', '-ti',
