@@ -312,9 +312,22 @@ def build__gcp(args):
   #       docker cp <CONTAINER ID>:/root/.ssh/google_compute_engine .
   #       docker cp <CONTAINER ID>:/root/.ssh/google_compute_engine.pub .
 
-  # copy and execute base_vm script
-  gcloud['compute', 'scp', 'gcp/base_vm.sh', 'gcp/credentials.json', f"{GCP_DEFAULT_SSH_USER}@{name}:/tmp/"] & FG
-  gcloud['compute', 'ssh', f"{GCP_DEFAULT_SSH_USER}@{name}", '--command', 'bash /tmp/base_vm.sh'] & FG
+  # copy and execute base_vm script -- retry needed sometimes
+  while True:
+    try:
+      gcloud['compute', 'scp', 'gcp/base_vm.sh', 'gcp/credentials.json', f"{GCP_DEFAULT_SSH_USER}@{name}:/tmp/"] & FG
+      gcloud['compute', 'ssh', f"{GCP_DEFAULT_SSH_USER}@{name}", '--command', 'bash /tmp/base_vm.sh'] & FG
+      # if got here everything worked and we break
+      break
+    except Exception as e:
+      # known Connection closed error
+      if '255' in str(e).split('\n')[0]:
+        # give a bit of time before retying
+        time.sleep(5)
+      else:
+        # not known exception we raise exception
+        raise e
+
 
   # stop machine
   compute.instances().stop(project=GCP_PROJECT_ID, zone=zone, instance=r['id']).execute()
@@ -334,7 +347,7 @@ def build__gcp(args):
   try:
     compute.images().get(project=GCP_PROJECT_ID, image=image_config['name']).execute()
     # if no exception delete the image
-    print("[INFO] Image already exists - deleting!")
+    print("[INFO] Image already exists - deleting ...", flush=True)
     compute.images().delete(project=GCP_PROJECT_ID, image=image_config['name']).execute()
     # wait for image to be deleted
     while True:
@@ -343,6 +356,9 @@ def build__gcp(args):
   except googleapiclient.errors.HttpError as e:
     error_info = json.loads(e.args[1])['error']
     if error_info['code'] == 404:
+      # wait a bit more time after 404 error
+      time.sleep(5)
+      print("[INFO] Image deleted!")
       pass
     else:
       raise(e)
