@@ -232,8 +232,9 @@ def build__local(args):
 
 def build__gcp(args):
   # build local images first
-  if not _is_inside_docker():
-    build__local(args)
+  if not args['skip_images']:
+    if not _is_inside_docker():
+      build__local(args)
 
   # then force docker
   _force_gcp_docker()
@@ -244,22 +245,24 @@ def build__gcp(args):
   import json
 
   # tag images built localy with GCP tag
-  with local.cwd(APP_PATH):
-    config = dotenv_values(".env")
-    built_images = { s.split('|')[0] : s.split('|')[1] for s in docker['images', f"{config['NAMESPACE']}/*", '--format', "{{.ID}}|{{.Repository}}"]().split('\n') if s}
-    for image_id, image_name in built_images.items():
-      base_image_name = image_name.split('/')[-1]
-      gcp_image_name = f"{GCP_DOCKER_IMAGE_NAMESPACE}/{base_image_name}:{GCP_DOCKER_IMAGE_TAG}"
-      docker['tag', image_id, gcp_image_name] & FG
-      docker['push', gcp_image_name] & FG
-      docker['rmi', gcp_image_name] & FG
+  if not args['skip_images']:
+    with local.cwd(APP_PATH):
+      config = dotenv_values(".env")
+      built_images = { s.split('|')[0] : s.split('|')[1] for s in docker['images', f"{config['NAMESPACE']}/*", '--format', "{{.ID}}|{{.Repository}}"]().split('\n') if s}
+      for image_id, image_name in built_images.items():
+        base_image_name = image_name.split('/')[-1]
+        gcp_image_name = f"{GCP_DOCKER_IMAGE_NAMESPACE}/{base_image_name}:{GCP_DOCKER_IMAGE_TAG}"
+        docker['tag', image_id, gcp_image_name] & FG
+        docker['push', gcp_image_name] & FG
+        docker['rmi', gcp_image_name] & FG
 
   # build and tag locust image
-  with local.cwd(ROOT_PATH / 'wkld'):
-    gcp_image_name = f"{GCP_DOCKER_IMAGE_NAMESPACE}/{LOCUST_DOCKER_IMAGE_NAME}"
-    docker['tag', LOCUST_DOCKER_IMAGE_NAME, gcp_image_name] & FG
-    docker['push', gcp_image_name] & FG
-    docker['rmi', gcp_image_name] & FG
+  if not args['skip_images']:
+    with local.cwd(ROOT_PATH / 'wkld'):
+      gcp_image_name = f"{GCP_DOCKER_IMAGE_NAMESPACE}/{LOCUST_DOCKER_IMAGE_NAME}"
+      docker['tag', LOCUST_DOCKER_IMAGE_NAME, gcp_image_name] & FG
+      docker['push', gcp_image_name] & FG
+      docker['rmi', gcp_image_name] & FG
 
   # Create base VM
   compute = googleapiclient.discovery.build('compute', 'v1')
@@ -300,10 +303,10 @@ def build__gcp(args):
   _gcp_vm_start(zone, r['id'])
   time.sleep(10) # extra time to avoid ssh errors
 
-  # In order to get the .ssh folder
+  # In order to get the .ssh folder via GCP instance
   # 1) Start a local GCP container
   # 2) Go the the GCP console, and in the SSH context menu, copy the gcloud command, it will look something like:
-  #    $ gcloud beta compute ssh --zone "europe-west3-c" "antipode-dev-tt" --project "pluribus"
+  #    $ gcloud compute ssh --zone "europe-west3-c" "antipode-dev-tt" --project "pluribus"
   # 3) Paste the above command in the container and let it run
   # 4) Copy the files from the container to outside
   #       docker cp <CONTAINER ID>:/root/.ssh/google_compute_engine .
@@ -1802,6 +1805,7 @@ if __name__ == '__main__':
 
   # build application
   build_parser = subparsers.add_parser('build', help='Build application from source')
+  build_parser.add_argument('-skip-images', action='store_true', help="Skip building and pushing docker images to GCP")
 
   # deploy application
   deploy_parser = subparsers.add_parser('deploy', help='Deploy application')
