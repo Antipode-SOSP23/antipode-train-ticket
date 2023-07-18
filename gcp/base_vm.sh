@@ -16,7 +16,7 @@ if ! type "docker-compose" > /dev/null; then
 fi
 
 # authenticate with gcloud:
-sudo gcloud auth activate-service-account --key-file=/tmp/pluribus.json
+sudo gcloud auth activate-service-account --key-file=/tmp/credentials.json
 sudo gcloud auth -q configure-docker
 
 # pull public images

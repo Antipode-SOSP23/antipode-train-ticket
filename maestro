@@ -310,7 +310,7 @@ def build__gcp(args):
   #       docker cp <CONTAINER ID>:/root/.ssh/google_compute_engine.pub .
 
   # copy and execute base_vm script
-  gcloud['compute', 'scp', 'gcp/base_vm.sh', 'gcp/pluribus.json', f"{GCP_DEFAULT_SSH_USER}@{name}:/tmp/"] & FG
+  gcloud['compute', 'scp', 'gcp/base_vm.sh', 'gcp/credentials.json', f"{GCP_DEFAULT_SSH_USER}@{name}:/tmp/"] & FG
   gcloud['compute', 'ssh', f"{GCP_DEFAULT_SSH_USER}@{name}", '--command', 'bash /tmp/base_vm.sh'] & FG
 
   # stop machine
@@ -1538,7 +1538,8 @@ def _force_gcp_docker():
   sys.argv[0] = './' + sys.argv[0].rpartition('/')[-1]
   # append arguments
   args = args + sys.argv
-  # print(' '.join(args))
+  # DEBUG:
+  # print(' '.join(args)); exit()
   subprocess.call(args)
   exit()
 

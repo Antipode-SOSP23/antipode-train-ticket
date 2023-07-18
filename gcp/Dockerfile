@@ -29,7 +29,7 @@ RUN set -ex ;\
 #-------------
 # install gcloud
 #-------------
-ARG AUTH_FILE=pluribus.json
+ARG AUTH_FILE=credentials.json
 COPY $AUTH_FILE /configs/$AUTH_FILE
 ENV GOOGLE_APPLICATION_CREDENTIALS /configs/$AUTH_FILE
 RUN set -ex ;\
