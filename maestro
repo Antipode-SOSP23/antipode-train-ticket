@@ -34,10 +34,21 @@ def _gcp_vm_create(zone, config):
 # Status available:
 #   PROVISIONING, STAGING, RUNNING, STOPPING, SUSPENDING, SUSPENDED, REPAIRING, TERMINATED
 def _gcp_vm_wait_for_status(zone, name, status):
+  import googleapiclient.discovery
+  import json
+
   while True:
-    r = _gcp_vm_get(zone=zone, name=name)
-    if r['status'] == status.upper():
-      return r
+    try:
+      r = _gcp_vm_get(zone=zone, name=name)
+      if r['status'] == status.upper():
+        time.sleep(1)
+        return r
+    except googleapiclient.errors.HttpError as e:
+      error_info = json.loads(e.args[1])['error']
+      if error_info['code'] == 404:
+        time.sleep(1)
+      else:
+        raise e
 
 def _gcp_vm_get(zone, name):
   import googleapiclient.discovery
@@ -52,7 +63,6 @@ def _gcp_vm_wait_for_ip(zone, name):
       return network_interface['accessConfigs'][0]['natIP'], network_interface['networkIP']
     except KeyError:
       time.sleep(1)
-      pass
 
 def _gcp_vm_delete(zone, name):
   import googleapiclient.discovery
