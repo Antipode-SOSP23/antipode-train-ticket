@@ -830,6 +830,7 @@ def clean__gcp(args):
 
   if args['strong']:
     print("[INFO] Removing GCP nodes ...")
+    _gcp_vm_delete('us-east1-b', 'antipode-dev-tt')
     for _, host in inventory.items():
       _gcp_vm_delete(host['gcp_zone'], host['gcp_name'])
 
