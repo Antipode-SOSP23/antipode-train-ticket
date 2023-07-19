@@ -92,7 +92,7 @@ def _gcp_vm_start(zone, name):
     try:
       # start the vm if not running
       compute.instances().start(project=GCP_PROJECT_ID, zone=zone, instance=name).execute()
-      # wait for delete to be completed
+      # wait for start to be completed
       return _gcp_vm_wait_for_status(zone, name, 'RUNNING')
     except googleapiclient.errors.HttpError as e:
       error_info = json.loads(e.args[1])['error']
@@ -250,7 +250,7 @@ def build__gcp(args):
   _force_gcp_docker()
   import googleapiclient.discovery
   from plumbum import local, FG
-  from plumbum.cmd import gcloud, docker
+  from plumbum.cmd import gcloud, docker, ls, rm
   from dotenv import dotenv_values
   import json
 
@@ -313,6 +313,11 @@ def build__gcp(args):
   _gcp_vm_start(zone, r['id'])
   time.sleep(10) # extra time to avoid ssh errors
 
+  # delete any old keys ssh keys from older deployments
+  with local.cwd('gcp/.ssh'):
+    rm['-f', 'google_compute_engine', 'google_compute_engine.pub', 'google_compute_known_hosts', 'known_hosts', 'known_hosts.old'] & FG
+    ls['-la'] & FG
+
   # In order to get the .ssh folder via GCP instance
   # 1) Start a local GCP container
   # 2) Go the the GCP console, and in the SSH context menu, copy the gcloud command, it will look something like:
@@ -337,7 +342,6 @@ def build__gcp(args):
       else:
         # not known exception we raise exception
         raise e
-
 
   # stop machine
   compute.instances().stop(project=GCP_PROJECT_ID, zone=zone, instance=r['id']).execute()
