@@ -42,7 +42,15 @@ sudo apt-get clean
 sudo apt-get autoclean
 
 # Allow ssh root login
-sudo sed -i 's/PermitRootLogin no/PermitRootLogin yes/g' /etc/ssh/sshd_config
+sudo sed -i 's/PermitRootLogin no/PermitRootLogin prohibit-password/g' /etc/ssh/sshd_config
+
+# Merge user authorized keys with root's
+cat ~/.ssh/authorized_keys > ~/authorized_keys.root
+sudo cat /root/.ssh/authorized_keys >> ~/authorized_keys.root
+sudo mv /root/.ssh/authorized_keys /root/.ssh/authorized_keys.old
+sudo mv ~/authorized_keys.root /root/.ssh/authorized_keys
+sudo chown root:root /root/.ssh/authorized_keys
+sudo chmod 600 /root/.ssh/authorized_keys
 
 # Disable Nagle's Algorithm
 sudo sysctl -w net.ipv4.tcp_syncookies=1
