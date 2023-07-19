@@ -598,7 +598,8 @@ def deploy__gcp(args):
   inventory = {}
   for group_name, group_nodes in vms.items():
     for v in group_nodes:
-      external_ip, internal_ip = _gcp_vm_wait_for_ip(node_info['zone'], v['name'])
+      zone = v['zone'].rsplit('/', 1)[1]
+      external_ip, internal_ip = _gcp_vm_wait_for_ip(zone, v['name'])
 
       if group_name not in inventory:
         inventory[group_name] = []
