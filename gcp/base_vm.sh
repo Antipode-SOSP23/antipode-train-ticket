@@ -23,7 +23,7 @@ sudo gcloud auth -q configure-docker
 sudo docker pull rabbitmq:management
 sudo docker pull jaegertracing/all-in-one
 sudo docker pull redis
-sudo docker pull mongo
+sudo docker pull mongo:5.0.10
 
 # install some extras
 sudo apt-get install -y --no-install-recommends \
