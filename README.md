@@ -21,6 +21,7 @@ You need to install the following dependencies before runnning:
 - Python 3.7+
 - The requisites for our `maestro` script. Simply run `pip install -r requirements.txt`
 - Docker
+- Pull submodules: `git submodule update --init --recursive`
 
 Prerequesites for **Local** deployment:
 - Docker Swarm
@@ -37,6 +38,8 @@ Optional dependencies:
 All the deployment is controlled by our `./maestro` script. Type `./maestro -h` to look into all the commands and option, and also each command comes with its own help, e.g. `./maestro run -h`.
 
 ### Local Deployment
+
+This environment is mainly used for development and debugging.
 
 *In preparation*
 
