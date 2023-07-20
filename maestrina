@@ -16,13 +16,27 @@ import time
 # CONSTANTS
 #--------------
 ROOT_PATH = Path(os.path.abspath(os.path.dirname(sys.argv[0])))
-DEFAULT_CONFIG = 'configs/key-services.yml'
+DEFAULT_CONFIG = 'configs/sosp23.yml'
 DURATION = 300
 maestro = local["./maestro"]
 #--------------
 COMBINATIONS = [
   # antipode, cli , threads
   # ------------------------
+  # baseline
+  (False ,   1  ,  1),
+  (False ,   1  ,  2),
+  (False ,   1  ,  3),
+  (False ,   1  ,  8),
+  (False ,   1  ,  10),
+  (False ,   1  ,  14),
+  # with antipode
+  (True  ,   1  ,  1),
+  (True  ,   1  ,  2),
+  (True  ,   1  ,  3),
+  (True  ,   1  ,  8),
+  (True  ,   1  ,  10),
+  (True  ,   1  ,  14),
 ]
 
 
@@ -30,7 +44,10 @@ COMBINATIONS = [
 # RUN
 #--------------
 # strong clean at the begining
-# maestro['--gcp', 'clean', '-strong'] & FG
+maestro['--gcp', 'clean', '-strong'] & FG
+
+# build the deployment
+maestro['--gcp', 'build'] & FG
 
 gathered_dirs = []
 for antipode, clients, threads in COMBINATIONS:
@@ -61,7 +78,7 @@ for antipode, clients, threads in COMBINATIONS:
   print('\n[INFO] Done!')
 
 # strong clean at the end
-# maestro['--gcp', 'clean', '-strong'] & FG
+maestro['--gcp', 'clean', '-strong'] & FG
 
 print("[INFO] Gathered results:")
 print('\n'.join([p.name for p in gathered_dirs]))
