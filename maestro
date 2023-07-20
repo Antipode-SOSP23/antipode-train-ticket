@@ -6,6 +6,7 @@ import os
 import sys
 import argparse
 import time
+from datetime import datetime
 
 
 #--------------
@@ -423,7 +424,6 @@ def deploy__gcp(args):
   _force_gcp_docker()
   from plumbum import local, FG
   from plumbum.cmd import ansible_playbook
-  from datetime import datetime
   from jinja2 import Environment
   import textwrap
   import shutil
@@ -676,7 +676,6 @@ def run(args):
 def run__local(args):
   from plumbum import local, FG
   from plumbum.cmd import docker_compose
-  from datetime import datetime
 
 
   tag = _get_last('local', 'deploy_tag')
@@ -1154,7 +1153,6 @@ def wkld(args):
   print("[INFO] Workdload done!")
 
 def wkld__local(args):
-  from datetime import datetime
   from jinja2 import Environment
   import textwrap
   from plumbum import local, FG
