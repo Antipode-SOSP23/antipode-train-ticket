@@ -679,8 +679,7 @@ def run__local(args):
   from datetime import datetime
 
 
-  tag = f"{datetime.now().strftime('%Y%m%d%H%M%S')}"
-  _set_last('local', 'deploy_tag', tag)
+  tag = _get_last('local', 'deploy_tag')
 
   # create deploy folder
   deploy_path = ROOT_PATH / 'deploy' / tag
