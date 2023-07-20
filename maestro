@@ -408,6 +408,11 @@ def build__gcp(args):
 # DEPLOY
 #--------------
 def deploy(args):
+  args['tag'] = f"{datetime.now().strftime('%Y%m%d%H%M%S')}"
+  _set_last(args['deploy_type'], 'deploy_tag', args['tag'])
+  _set_last(args['deploy_type'], 'clients', args['clients'])
+  _set_last(args['deploy_type'], 'deploy_config', args['config'])
+
   getattr(sys.modules[__name__], f"deploy__{args.pop('deploy_type')}")(args)
   print("[INFO] Deploy done!")
 
@@ -424,12 +429,8 @@ def deploy__gcp(args):
   import shutil
 
 
-  tag = f"{datetime.now().strftime('%Y%m%d%H%M%S')}"
-  _set_last('gcp', 'deploy_tag', tag)
-  _set_last('gcp', 'clients', args['clients'])
-
   # create deploy folder
-  deploy_path = ROOT_PATH / 'deploy' / tag
+  deploy_path = ROOT_PATH / 'deploy' / args['tag']
   os.makedirs(deploy_path, exist_ok=True)
 
   # copy ansible config to deploy dir
@@ -666,6 +667,8 @@ def deploy__gcp(args):
 def run(args):
   _set_last(args['deploy_type'], 'drawback_delay', args['drawback_delay'])
   _set_last(args['deploy_type'], 'antipode', args['antipode'])
+  _set_last(args['deploy_type'], 'prometheus', False)
+  _set_last(args['deploy_type'], 'portainer', False)
 
   getattr(sys.modules[__name__], f"run__{args.pop('deploy_type')}")(args)
   print("[INFO] Run done!")
