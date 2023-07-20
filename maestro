@@ -329,7 +329,10 @@ def build__gcp(args):
   # copy and execute base_vm script -- retry needed sometimes
   while True:
     try:
-      gcloud['compute', 'scp', 'gcp/base_vm.sh', 'gcp/credentials.json', f"{GCP_DEFAULT_SSH_USER}@{GCP_BUILD_IMAGE_NAME}:/tmp/"] & FG
+      # first connection to create ssh keys
+      gcloud['compute', 'ssh', f"{GCP_DEFAULT_SSH_USER}@{GCP_BUILD_IMAGE_NAME}", '--command', 'echo "Connected!"'] & FG
+      # copy key and scripts
+      gcloud['compute', 'scp', 'gcp/.ssh/google_compute_engine.pub', 'gcp/base_vm.sh', 'gcp/credentials.json', f"{GCP_DEFAULT_SSH_USER}@{GCP_BUILD_IMAGE_NAME}:/tmp/"] & FG
       gcloud['compute', 'ssh', f"{GCP_DEFAULT_SSH_USER}@{GCP_BUILD_IMAGE_NAME}", '--command', 'bash /tmp/base_vm.sh'] & FG
       # if got here everything worked and we break
       break
