@@ -278,11 +278,10 @@ def build__gcp(args):
   compute = googleapiclient.discovery.build('compute', 'v1')
   image_response = compute.images().getFromFamily(project='debian-cloud', family='debian-10').execute()
   source_disk_image = image_response['selfLink']
-  name = 'antipode-dev-tt'
   zone = 'us-east1-b'
   machine_type = 'f1-micro'
   config = {
-    'name': name,
+    'name': GCP_BUILD_IMAGE_NAME,
     'machineType': f"zones/{zone}/machineTypes/{machine_type}",
     'disks': [
       {
@@ -316,7 +315,7 @@ def build__gcp(args):
   # delete any old keys ssh keys from older deployments
   with local.cwd('gcp/.ssh'):
     rm['-f', 'google_compute_engine', 'google_compute_engine.pub', 'google_compute_known_hosts', 'known_hosts', 'known_hosts.old'] & FG
-    ls['-la'] & FG
+    # ls['-la'] & FG
 
   # In order to get the .ssh folder via GCP instance
   # 1) Start a local GCP container
@@ -330,8 +329,8 @@ def build__gcp(args):
   # copy and execute base_vm script -- retry needed sometimes
   while True:
     try:
-      gcloud['compute', 'scp', 'gcp/base_vm.sh', 'gcp/credentials.json', f"{GCP_DEFAULT_SSH_USER}@{name}:/tmp/"] & FG
-      gcloud['compute', 'ssh', f"{GCP_DEFAULT_SSH_USER}@{name}", '--command', 'bash /tmp/base_vm.sh'] & FG
+      gcloud['compute', 'scp', 'gcp/base_vm.sh', 'gcp/credentials.json', f"{GCP_DEFAULT_SSH_USER}@{GCP_BUILD_IMAGE_NAME}:/tmp/"] & FG
+      gcloud['compute', 'ssh', f"{GCP_DEFAULT_SSH_USER}@{GCP_BUILD_IMAGE_NAME}", '--command', 'bash /tmp/base_vm.sh'] & FG
       # if got here everything worked and we break
       break
     except Exception as e:
@@ -351,7 +350,7 @@ def build__gcp(args):
   image_config = {
     "kind": "compute#image",
     "name": GCP_MACHINE_IMAGE_NAME,
-    "sourceDisk": "projects/pluribus/zones/us-east1-b/disks/antipode-dev-tt",
+    "sourceDisk": f"projects/pluribus/zones/us-east1-b/disks/{GCP_BUILD_IMAGE_NAME}",
     "storageLocations": [
       "us"
     ]
@@ -834,7 +833,7 @@ def clean__gcp(args):
 
   if args['strong']:
     print("[INFO] Removing GCP nodes ...")
-    _gcp_vm_delete('us-east1-b', 'antipode-dev-tt')
+    _gcp_vm_delete('us-east1-b', GCP_BUILD_IMAGE_NAME)
     for _, host in inventory.items():
       _gcp_vm_delete(host['gcp_zone'], host['gcp_name'])
 
@@ -1799,6 +1798,7 @@ GCP_DOCKER_IMAGE_NAME = 'gcp-manager:antipode'
 GCP_DOCKER_IMAGE_NAMESPACE = f"gcr.io/{GCP_PROJECT_ID}"
 GCP_DOCKER_IMAGE_TAG = "antipode"
 GCP_DEFAULT_SSH_USER = _get_config('gcp','default_ssh_user')
+GCP_BUILD_IMAGE_NAME = 'antipode-dev-tt'
 GCP_MACHINE_IMAGE_NAME = 'antipode-tt'
 GCP_MACHINE_IMAGE_LINK = f"https://www.googleapis.com/compute/v1/projects/{GCP_PROJECT_ID}/global/images/{GCP_MACHINE_IMAGE_NAME}"
 GCP_SWARM_MANAGER_NAME = 'manager-tt'
