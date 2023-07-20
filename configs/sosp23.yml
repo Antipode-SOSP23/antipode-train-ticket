@@ -20,7 +20,7 @@ nodes:
     machine_type: e2-standard-8
   ts-inside-payment-service:
     hostname: ts-inside-payment-service.tt
-    zone: europe-west3-a
+    zone: us-central1-a
     machine_type: e2-standard-8
   ts-order-service:
     hostname: ts-order-service.tt
