@@ -1,3 +1,7 @@
 throughput_latency:
-  - '20211214022611-1cli-1threads-antipode_no'
-  - '20211214045321-1cli-1threads-antipode_yes'
+  - '20230720131918-1cli-12threads-antipode_no'
+  - '20230720143227-1cli-12threads-antipode_yes'
+
+throughput_latency_with_consistency_window:
+  - '20230720131918-1cli-12threads-antipode_no'
+  - '20230720143227-1cli-12threads-antipode_yes'
