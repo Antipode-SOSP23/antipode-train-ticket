@@ -1470,10 +1470,13 @@ def _services_to_port():
     return { name:int(d['ports'][0].split(':')[0]) for name,d in yaml.load(file, Loader=yaml.FullLoader)['services'].items() if 'ports' in d }
 
 def _index_orders(deploy_type, allowed_statuses=[0,1,2,3,4,5,6]):
-  # for status order see: ts-cancel-service/src/main/java/cancel/entity/OrderStatus.java
   import requests
-  r = requests.get(f"{_service_public_endpoint(deploy_type, 'ts-order-service')}/api/v1/orderservice/order")
-  return [ o['id'] for o in r.json()['data'] if o['status'] in allowed_statuses ]
+  # Loop until we get a 200 code with a data key on json
+  while True:
+    # for status order see: ts-cancel-service/src/main/java/cancel/entity/OrderStatus.java
+    r = requests.get(f"{_service_public_endpoint(deploy_type, 'ts-order-service')}/api/v1/orderservice/order")
+    if r.status_code == 200 and 'data' in r.json():
+      return [ o['id'] for o in r.json()['data'] if o['status'] in allowed_statuses ]
 
 def _load_yaml(path):
   import yaml
