@@ -117,11 +117,14 @@ def plot__throughput_latency_with_consistency_window(gather_paths):
   df = pd.DataFrame(data).sort_values(by=['type','users'])
 
   # parse consistency window for PEAK CLIENTS
-  PEAK_CLIENTS=10
+
+  peak_original_clients = df[(df['type'] == 'Original')]['users'].max()
+  peak_antipode_clients = df[(df['type'] == 'Antipode')]['users'].max()
+
   cw_data = {
     'Throughput': r'$\approx$360',
-    'Original': df[(df['type'] == 'Original') & (df['users'] == PEAK_CLIENTS)]['latency_90'].values[0],
-    'Antipode': df[(df['type'] == 'Antipode') & (df['users'] == PEAK_CLIENTS)]['latency_90'].values[0],
+    'Original': df[(df['type'] == 'Original') & (df['users'] == peak_original_clients)]['latency_90'].values[0],
+    'Antipode': df[(df['type'] == 'Antipode') & (df['users'] == peak_antipode_clients)]['latency_90'].values[0],
   }
   # for each Baseline / Antipode pair we take the Baseline out of antipode so
   # stacked bars are presented correctly
