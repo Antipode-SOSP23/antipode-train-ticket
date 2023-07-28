@@ -52,6 +52,19 @@ gcp:
   default_ssh_user: jfloff
 ```
 
+Set the following firewall rules on GCP [web console](https://console.cloud.google.com/networking/firewalls/list) (`maestro` will warn you of any missing keys):
+  - `portainer`
+      - IP Addresses: `0.0.0.0/0`
+      - TCP ports: 9000,8000,9090,9091,9100
+  - `swarm`
+      - IP Addresses: `0.0.0.0/0`
+      - TCP ports: 2376,2377,7946
+      - UDP ports: 7946,4789
+  - `nodes`
+      - IP Addresses: `0.0.0.0/0`
+      - TCP ports: 3306,9001,5672,6379,8080,11178,11188,12031,12032,12340,12342,12345,12346,12347,12386,12862,14322,14567,14568,14569,14578,15672,15678,15679,15680,15681,16101,16108,16110,16111,16112,16113,16114,16115,16346,16579,16686,17001,17853,18673,18767,18855,18856,18885,18886,18888,18898,19001,2003
+      - UDP ports: 5775,6831,6832
+
 Then run *maestro* to build and deploy the GCP instances:
 ```zsh
 ./maestro --gcp build
