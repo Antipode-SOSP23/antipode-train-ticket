@@ -280,7 +280,7 @@ def build__gcp(args):
   image_response = compute.images().getFromFamily(project='debian-cloud', family='debian-10').execute()
   source_disk_image = image_response['selfLink']
   zone = 'us-east1-b'
-  machine_type = 'f1-micro'
+  machine_type = 'e2-medium'
   config = {
     'name': GCP_BUILD_IMAGE_NAME,
     'machineType': f"zones/{zone}/machineTypes/{machine_type}",
@@ -354,7 +354,7 @@ def build__gcp(args):
   image_config = {
     "kind": "compute#image",
     "name": GCP_MACHINE_IMAGE_NAME,
-    "sourceDisk": f"projects/pluribus/zones/us-east1-b/disks/{GCP_BUILD_IMAGE_NAME}",
+    "sourceDisk": f"projects/{GCP_PROJECT_ID}/zones/us-east1-b/disks/{GCP_BUILD_IMAGE_NAME}",
     "storageLocations": [
       "us"
     ]
