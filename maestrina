@@ -16,6 +16,7 @@ import time
 # CONSTANTS
 #--------------
 ROOT_PATH = Path(os.path.abspath(os.path.dirname(sys.argv[0])))
+GATHER_PATH = Path(ROOT_PATH / 'gather')
 DEFAULT_CONFIG = 'configs/sosp23.yml'
 DURATION = 300
 maestro = local["./maestro"]
@@ -67,7 +68,8 @@ for antipode, clients, threads in COMBINATIONS:
   # run the workload
   maestro['--gcp', 'wkld', '-d', DURATION, '-c', clients, '-t', threads] & FG
   # find out the gather dir
-  gathered_dirs.append(max(Path(ROOT_PATH / 'gather').glob('*/'), key=os.path.getmtime))
+  gather_path = max(GATHER_PATH.glob('**'), key=os.path.getmtime)
+  gathered_dirs.append(gather_path.stem)
 
   # Look at info
   # maestro['--gcp', 'info', '-links'] & FG
@@ -81,4 +83,4 @@ for antipode, clients, threads in COMBINATIONS:
 maestro['--gcp', 'clean', '-strong'] & FG
 
 print("[INFO] Gathered results:")
-print('\n'.join([p.name for p in gathered_dirs]))
+print('\n'.join(gathered_dirs))
