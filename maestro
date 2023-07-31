@@ -737,6 +737,11 @@ def run__local(args):
         ] & FG
         # wait for dashboard to be up
         _wait_url_up(_service_public_endpoint('local', 'ts-ui-dashboard'))
+        # wait for key services to be up
+        _wait_tt_api(f"{_service_public_endpoint('local', 'ts-auth-service')}/api/v1/login")
+        _wait_tt_api(f"{_service_public_endpoint('local', 'ts-order-service')}/api/v1/orderservice/welcome")
+        _wait_tt_api(f"{_service_public_endpoint('local', 'ts-cancel-service')}/api/v1/cancelservice/welcome")
+        _wait_tt_api(f"{_service_public_endpoint('local', 'ts-inside-payment-service')}/api/v1/inside_pay_service/welcome")
       else:
         docker_compose[
           '--project-directory', APP_PATH,
@@ -1595,6 +1600,23 @@ def _wait_url_up(url):
       return_code = urllib.request.urlopen(url).getcode()
       if return_code == 200:
         return
+    except urllib.error.URLError as e:
+      pass
+
+def _wait_tt_api(url):
+  import urllib.request
+
+  while True:
+    try:
+      return_code = urllib.request.urlopen(url).getcode()
+      if return_code == 200:
+        return
+    except urllib.error.HTTPError as e:
+      # if TrainTicket replies with 403 then we just missing login
+      # which means everything is working
+      if e.code == 403:
+        return
+      pass
     except urllib.error.URLError as e:
       pass
 
