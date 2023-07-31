@@ -81,9 +81,9 @@ In order to run the original TrainTicket application remove the `-antipode` para
 
 With our services started we run the workload:
 ```zsh
-./maestro --gcp wkld -d DURATION_SEC -c NUM CLIENTS -t NUM_THREADS
+./maestro --gcp wkld -d DURATION_SEC -t NUM_THREADS
 ```
-For instance, we can the workload for 300 seconds (`300`), and with `1` client (same as the deploy command) with `12` concurrent threads.
+For instance, we can the workload for 300 seconds (`300`) with `12` concurrent threads.
 At the end the `wkld` command will make available in the `gather` folder the evaluation results. The gather folder is key for plotting after (see ahead).
 
 

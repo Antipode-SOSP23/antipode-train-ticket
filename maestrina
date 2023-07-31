@@ -66,7 +66,7 @@ for antipode, clients, threads in COMBINATIONS:
   maestro[run_args] & FG
 
   # run the workload
-  maestro['--gcp', 'wkld', '-d', DURATION, '-c', clients, '-t', threads] & FG
+  maestro['--gcp', 'wkld', '-d', DURATION, '-t', threads] & FG
   # find out the gather dir
   gather_path = max(GATHER_PATH.glob('**'), key=os.path.getmtime)
   gathered_dirs.append(gather_path.stem)
