@@ -172,7 +172,7 @@ def plot__throughput_latency_with_consistency_window(gather_paths):
     label_type='edge', padding=-1, fontsize=8, weight='bold', color='black')
 
   # slightly increase ylim to fix bar label
-  axes[1].set_ylim(bottom=0, top=cw_df.max().max() * 1.25)
+  axes[1].set_ylim(bottom=0, top=(cw_data['Antipode'] + cw_data['Original']) * 1.20)
 
   # set axis labels
   axes[1].set_ylabel(r'Consistency Window (ms)')
