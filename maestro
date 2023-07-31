@@ -891,13 +891,14 @@ def seed__local(args):
 
   # dynamically build docker-compose for client seeds
   template = """
-    version: '3.6'
+    version: '3.9'
 
     services:
       {% for worker in workers %}
       {{ worker['id'] }}:
         image: {{ locust_docker_image_name }}
         working_dir: /mnt/locust
+        user: root
         command: python3 seed.py
         environment:
           DEPLOY_TAG: {{ deploy_tag }}
@@ -1008,10 +1009,10 @@ def seed__gcp(args):
 
   # dynamically build docker-compose for client seeds
   template = """
-    version: '3.6'
+    version: '3.9'
 
     networks:
-      {{ docker_compose_network }}:
+      {{ docker_compose_network }}:
         external:
           name: {{ docker_compose_network }}
 
@@ -1020,6 +1021,7 @@ def seed__gcp(args):
       {{ worker['gcp_name'] }}:
         image: {{ gcp_docker_image_namespace }}/{{ locust_docker_image_name }}
         working_dir: /mnt/locust
+        user: root
         command: python3 seed.py
         environment:
           DEPLOY_TAG: {{ deploy_tag }}
@@ -1184,12 +1186,13 @@ def wkld__local(args):
 
   # dynamically build docker-compose for locust
   template = """
-    version: '3.6'
+    version: '3.9'
 
     services:
       master:
         image: {{ locust_docker_image_name }}
         working_dir: /mnt/locust
+        user: root
         command: locust -f locustfile.py --master --master-bind-host=0.0.0.0 --master-bind-port=8089 --host http://master:8089 --expect-workers {{ workers | length }} --headless --reset-stats --only-summary --logfile {{ deploy_tag }}.err --html {{ deploy_tag }}.html --csv {{ deploy_tag }} --run-time {{ run_time }} -u {{ users }}
         environment:
           DEPLOY_TAG: {{ deploy_tag }}
@@ -1208,6 +1211,7 @@ def wkld__local(args):
       {{ worker['id'] }}:
         image: {{ locust_docker_image_name }}
         working_dir: /mnt/locust
+        user: root
         command: locust -f locustfile.py --worker --master-host master --master-port=8089 --headless --reset-stats
         environment:
           DEPLOY_TAG: {{ deploy_tag }}
@@ -1300,10 +1304,10 @@ def wkld__gcp(args):
 
   # dynamically build docker-compose for clients
   template = """
-    version: '3.6'
+    version: '3.9'
 
     networks:
-      {{ docker_compose_network }}:
+      {{ docker_compose_network }}:
         external:
           name: {{ docker_compose_network }}
 
@@ -1311,6 +1315,7 @@ def wkld__gcp(args):
       master:
         image: {{ gcp_docker_image_namespace }}/{{ locust_docker_image_name }}
         working_dir: /mnt/locust
+        user: root
         command: locust -f locustfile.py --master --master-bind-host=0.0.0.0 --master-bind-port=8089 --host http://master:8089 --expect-workers {{ workers | length }} --headless --reset-stats --only-summary --logfile {{ deploy_tag }}.err --html {{ deploy_tag }}.html --csv {{ deploy_tag }} --run-time {{ run_time }} --stop-timeout {{ stop_timeout }} -u {{ users }}
         environment:
           DEPLOY_TAG: {{ deploy_tag }}
@@ -1325,7 +1330,7 @@ def wkld__gcp(args):
         volumes:
           - /code/wkld:/mnt/locust
         networks:
-          {{ docker_compose_network }}:
+          {{ docker_compose_network }}:
             aliases:
               - master
         deploy:
@@ -1340,6 +1345,7 @@ def wkld__gcp(args):
       {{ worker['gcp_name'] }}:
         image: {{ gcp_docker_image_namespace }}/{{ locust_docker_image_name }}
         working_dir: /mnt/locust
+        user: root
         command: locust -f locustfile.py --worker --master-host master --master-port=8089 --headless --reset-stats
         environment:
           DEPLOY_TAG: {{ deploy_tag }}
@@ -1352,7 +1358,7 @@ def wkld__gcp(args):
         volumes:
           - /code/wkld:/mnt/locust
         networks:
-          {{ docker_compose_network }}:
+          {{ docker_compose_network }}:
             aliases:
               - {{ worker['gcp_name'] }}
         deploy:
