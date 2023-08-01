@@ -95,7 +95,9 @@ In order to keep your GCP instances and just undeploy undeploy the TrainTicket a
 
 
 Although `maestro` run a single deployment end-to-end, in order to run all the necessary workloads for plots you need to repeat these steps for several different combinations.
-To ease that process we provide `maestrina`, a convenience script that executes all combinations of workloads to plot after. In order to change the combinations just edit the code get your own combinations in place. There might be instances where `maestrina` is not able to run a specific endpoint, and in those scenarios you might need to rerun ou run `maestro` individually -- which is always the safest method.
+To ease that process we provide `maestrina`, a convenience script that executes all combinations of workloads to plot after.
+We pre-populate `maestrina` with the combinations and rounds configurations for the SOSP'23 plots
+There might be instances where `maestrina` is not able to run a specific endpoint, and in those scenarios you might need to rerun ou run `maestro` individually -- which is always the safest method.
 
 
 There are other commands available (for details do `-h`), namely:
