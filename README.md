@@ -123,11 +123,11 @@ There is also only an individual throughput/latency plot with the key `throughpu
 
 João Loff, Daniel Porto, João Garcia, Jonathan Mace, Rodrigo Rodrigues\
 Antipode: Enforcing Cross-Service Causal Consistency in Distributed Applications\
-To appear.\
-[Download]()
+SOSP 2023.\
+[Paper](https://dl.acm.org/doi/10.1145/3600006.3613176)
 
 
 Xiang Zhou, Xin Peng, Tao Xie, Jun Sun, Chao Ji, Wenhai Li, and Dan Ding\
 Fault Analysis and Debugging of Microservice Systems: Industrial Survey, Benchmark System, and Empirical Study\
 IEEE Transactions on Software Engineering 2021\
-[Download](https://ieeexplore.ieee.org/ielaam/32/9352984/8580420-aam.pdf)
+[Paper](https://ieeexplore.ieee.org/ielaam/32/9352984/8580420-aam.pdf)
